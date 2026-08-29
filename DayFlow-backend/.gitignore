@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Local data (SQLite fallback, mem0 store)
+data/
+mem0_db/
+*.db
+
+# Vercel
+.vercel/

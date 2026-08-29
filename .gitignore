@@ -1,0 +1,43 @@
+# Secrets — never commit these
+.env
+*.env
+!.env.example
+
+# Node / Expo (frontend)
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+expo-env.d.ts
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Python (backend)
+__pycache__/
+*.py[oc]
+.venv/
+.pytest_cache/
+*.egg-info/
+build/
+wheels/
+
+# Local data (SQLite fallback, mem0 vector store)
+data/
+*.db
+
+# Vercel
+.vercel/
+
+# Scaffolding leftovers
+.expo-export-check/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+*.log
