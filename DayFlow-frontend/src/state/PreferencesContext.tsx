@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { defaultPreferences } from '../data/mock';
+import { defaultPreferences } from '../data/content';
 import { Preferences } from '../data/types';
 
 interface PreferencesContextValue {

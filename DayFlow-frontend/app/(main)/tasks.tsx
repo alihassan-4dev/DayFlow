@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { AppText } from '../../src/components/AppText';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ProgressCard } from '../../src/components/ProgressCard';
@@ -19,7 +19,8 @@ type Tab = 'today' | 'upcoming';
 export default function TasksScreen() {
   const { theme } = useTheme();
   const { prefs } = usePreferences();
-  const { todayTasks, upcomingTasks, todayProgress, toggleTask } = useTasks();
+  const { todayTasks, upcomingTasks, todayProgress, toggleTask, loading, offline, refresh } =
+    useTasks();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('today');
 
@@ -70,30 +71,58 @@ export default function TasksScreen() {
         />
       </View>
 
-      <FlatList
-        data={data}
-        keyExtractor={(t) => t.id}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <TaskCard
-            task={item}
-            onToggle={() => toggleTask(item.id)}
-            onPress={() => router.push({ pathname: '/task-editor', params: { id: item.id } })}
-          />
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            icon={tab === 'today' ? 'sun' : 'calendar'}
-            title={tab === 'today' ? 'Nothing planned yet' : 'No upcoming tasks'}
-            message={
-              tab === 'today'
-                ? 'Add a task below, or ask the AI to plan your day.'
-                : 'Your week is wide open. Add something to look forward to.'
-            }
-          />
-        }
-      />
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={theme.colors.accent} />
+        </View>
+      ) : (
+        <FlatList
+          data={data}
+          keyExtractor={(t) => t.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={false}
+              onRefresh={refresh}
+              tintColor={theme.colors.textTertiary}
+            />
+          }
+          ListHeaderComponent={
+            offline ? (
+              <View
+                style={[
+                  styles.offlineBanner,
+                  { backgroundColor: theme.colors.surfaceElevated },
+                ]}
+              >
+                <Feather name="cloud-off" size={13} color={theme.colors.textSecondary} />
+                <AppText variant="caption" tone="secondary">
+                  Can’t reach DayFlow — pull down to retry
+                </AppText>
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <TaskCard
+              task={item}
+              onToggle={() => toggleTask(item.id)}
+              onPress={() => router.push({ pathname: '/task-editor', params: { id: item.id } })}
+            />
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              icon={tab === 'today' ? 'sun' : 'calendar'}
+              title={tab === 'today' ? 'Nothing planned yet' : 'No upcoming tasks'}
+              message={
+                tab === 'today'
+                  ? 'Add a task below, or ask the AI to plan your day.'
+                  : 'Your week is wide open. Add something to look forward to.'
+              }
+            />
+          }
+        />
+      )}
 
       {/* Add task */}
       <Pressable
@@ -140,6 +169,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.space.xl,
     paddingTop: layout.space.lg,
     paddingBottom: 110,
+  },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 80 },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: layout.radius.md,
+    paddingVertical: 8,
+    marginBottom: layout.space.md,
   },
   fab: {
     position: 'absolute',

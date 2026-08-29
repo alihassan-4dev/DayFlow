@@ -34,13 +34,12 @@ export default function SignUp() {
       if (user.name) setPref('name', user.name);
       router.replace('/onboarding');
     } catch (e) {
-      if (e instanceof ApiError) {
-        setErrors({ email: e.message });
-      } else {
-        // Backend unreachable — continue in offline demo mode.
-        if (name.trim()) setPref('name', name.trim());
-        router.replace('/onboarding');
-      }
+      setErrors({
+        email:
+          e instanceof ApiError
+            ? e.message
+            : 'Can’t reach DayFlow right now. Check your connection and try again.',
+      });
     } finally {
       setLoading(false);
     }

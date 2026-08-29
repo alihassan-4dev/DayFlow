@@ -17,7 +17,7 @@ import { TypingDots } from '../../src/components/ai/TypingDots';
 import { AppText } from '../../src/components/AppText';
 import { Chip } from '../../src/components/Chip';
 import { Screen } from '../../src/components/Screen';
-import { aiSuggestionChips, cannedReplies } from '../../src/data/mock';
+import { aiSuggestionChips } from '../../src/data/content';
 import { AIState, ChatMessage } from '../../src/data/types';
 import { useTasks } from '../../src/state/TasksContext';
 import { useTheme } from '../../src/theme/ThemeContext';
@@ -36,7 +36,6 @@ export default function AIScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [aiState, setAIState] = useState<AIState>('idle');
   const [input, setInput] = useState('');
-  const replyIndex = useRef(0);
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const scrollToEnd = () =>
@@ -68,10 +67,9 @@ export default function AIScreen() {
           if (res.tasks_changed) refresh();
         })
         .catch(() => {
-          // Backend unreachable — fall back to a canned demo reply.
-          const reply = cannedReplies[replyIndex.current % cannedReplies.length];
-          replyIndex.current += 1;
-          setTimeout(() => finish(reply), 900);
+          finish({
+            text: 'I can’t reach DayFlow right now. Check your connection and try again in a moment.',
+          });
         });
     },
     [aiState, messages, refresh]

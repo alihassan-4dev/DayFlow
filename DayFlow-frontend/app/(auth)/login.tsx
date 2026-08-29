@@ -32,12 +32,11 @@ export default function Login() {
       if (user.name) setPref('name', user.name);
       router.replace('/(main)/tasks');
     } catch (e) {
-      if (e instanceof ApiError) {
-        setError(e.message);
-      } else {
-        // Backend unreachable — continue in offline demo mode.
-        router.replace('/(main)/tasks');
-      }
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : 'Can’t reach DayFlow right now. Check your connection and try again.'
+      );
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,8 @@ import { Button } from '../src/components/Button';
 import { Chip } from '../src/components/Chip';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
-import { notificationPreviews } from '../src/data/mock';
+import { notificationPreviews } from '../src/data/content';
+import { requestNotificationPermission } from '../src/services/notifications';
 import { NotificationTone } from '../src/data/types';
 import { usePreferences } from '../src/state/PreferencesContext';
 import { useTheme } from '../src/theme/ThemeContext';
@@ -37,11 +38,14 @@ export default function Onboarding() {
       prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]
     );
 
-  const finish = () => {
+  const finish = async () => {
     setPref('name', name.trim() || 'there');
     setPref('notificationTone', tone);
     setFinishing(true);
-    setTimeout(() => router.replace('/(main)/tasks'), 1400);
+    // Ask for the OS notification permission while the "setting up" state shows.
+    const granted = await requestNotificationPermission();
+    setPref('notificationsEnabled', granted);
+    setTimeout(() => router.replace('/(main)/tasks'), 900);
   };
 
   if (finishing) {

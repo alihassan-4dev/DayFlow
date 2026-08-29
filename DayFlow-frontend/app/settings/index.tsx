@@ -6,12 +6,14 @@ import { AppText } from '../../src/components/AppText';
 import { Screen } from '../../src/components/Screen';
 import { SettingGroup, SettingRow } from '../../src/components/SettingRow';
 import { usePreferences } from '../../src/state/PreferencesContext';
+import { useTasks } from '../../src/state/TasksContext';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { cardShadow, layout } from '../../src/theme/themes';
 
 export default function SettingsIndex() {
   const { theme } = useTheme();
   const { prefs } = usePreferences();
+  const { clear: clearTasks } = useTasks();
   const router = useRouter();
 
   const toneLabel = {
@@ -89,6 +91,7 @@ export default function SettingsIndex() {
             danger
             onPress={() => {
               api.signOut();
+              clearTasks();
               router.replace('/(auth)/welcome');
             }}
             last

@@ -167,6 +167,10 @@ export const api = {
     });
   },
 
+  async me(): Promise<AuthUser> {
+    return request<AuthUser>('/auth/me');
+  },
+
   async signOut(): Promise<void> {
     await setToken(null);
   },

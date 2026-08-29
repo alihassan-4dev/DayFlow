@@ -5,7 +5,8 @@ import { AppText } from '../../src/components/AppText';
 import { Chip } from '../../src/components/Chip';
 import { Screen } from '../../src/components/Screen';
 import { SettingGroup, SettingRow } from '../../src/components/SettingRow';
-import { notificationPreviews } from '../../src/data/mock';
+import { notificationPreviews } from '../../src/data/content';
+import { requestNotificationPermission } from '../../src/services/notifications';
 import { NotificationTone } from '../../src/data/types';
 import { usePreferences } from '../../src/state/PreferencesContext';
 import { useTheme } from '../../src/theme/ThemeContext';
@@ -31,7 +32,13 @@ export default function Notifications() {
             title="Allow notifications"
             subtitle="AI-written reminders for your tasks"
             switchValue={prefs.notificationsEnabled}
-            onSwitch={(v) => setPref('notificationsEnabled', v)}
+            onSwitch={async (v) => {
+              if (v && !(await requestNotificationPermission())) {
+                setPref('notificationsEnabled', false);
+                return;
+              }
+              setPref('notificationsEnabled', v);
+            }}
             last
           />
         </SettingGroup>
