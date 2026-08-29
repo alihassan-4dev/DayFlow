@@ -1,6 +1,6 @@
 # DayFlow — Frontend
 
-Premium AI-powered daily task manager. **UI only** — no backend, auth, AI, voice, or notification services are connected yet; everything runs on mock data.
+Premium AI-powered daily task manager. **UI only** — no backend, auth, AI, voice, or notification services are connected yet; everything runs on mock data
 
 Stack: React Native · Expo SDK 54 · TypeScript · Expo Router · npm
 
