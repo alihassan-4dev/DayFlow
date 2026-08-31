@@ -43,7 +43,7 @@ FastAPI Cloud and building the mobile app with EAS.
 ## Features
 
 - Email/password auth (JWT), onboarding, task CRUD with priorities & reminders
-- AI assistant: tool-calling agent (Groq `llama-3.3-70b-versatile` via LangChain)
+- AI assistant: tool-calling agent (Groq `openai/gpt-oss-120b` via LangChain)
   that operates directly on your tasks
 - Long-term memory: local mem0 (Groq + local embeddings + Chroma) or hosted mem0
 - Six-theme design system (Paper default, Ink, Aurora, Ocean, Forest, Carbon/OLED)
