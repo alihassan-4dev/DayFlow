@@ -45,11 +45,15 @@ async def _generate(messages: list) -> str:
     from langchain_groq import ChatGroq
 
     settings = get_settings()
+    model_options = {"reasoning_effort": "low"} if "gpt-oss" in settings.groq_model.lower() else {}
     model = ChatGroq(
         api_key=settings.groq_api_key,
         model=settings.groq_model,
         temperature=0.7,
-        max_tokens=80,
+        # Reasoning models use output tokens before emitting their final text.
+        # A very small cap can therefore return healthy reasoning but no message.
+        max_tokens=400,
+        **model_options,
     )
     for _ in range(2):
         response = await model.ainvoke(messages)
