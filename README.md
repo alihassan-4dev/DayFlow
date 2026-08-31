@@ -38,7 +38,7 @@ npx expo start                  # scan the QR with Expo Go
 ```
 
 Each package's README has the full details, including deploying the backend to
-Vercel and building an APK with EAS.
+FastAPI Cloud and building the mobile app with EAS.
 
 ## Features
 

@@ -1,0 +1,17 @@
+# Local secrets and environments
+.env
+.env.*
+!.env.example
+.venv/
+
+# Development-only files
+tests/
+.pytest_cache/
+**/__pycache__/
+*.py[cod]
+data/
+*.db
+
+# Files for the alternative Vercel deployment target
+api/
+vercel.json

@@ -1,7 +1,6 @@
-# Vercel deployment requirements (serverless — no local-memory extras;
-# set MEM0_API_KEY to keep long-term memory via the hosted mem0 platform).
-# Local development uses uv + pyproject.toml instead.
-fastapi>=0.115
+# Compatibility requirements for hosts that do not install from pyproject.toml.
+# FastAPI Cloud and local development use uv + pyproject.toml instead.
+fastapi[standard]>=0.115
 sqlalchemy[asyncio]>=2.0
 asyncpg>=0.30
 aiosqlite>=0.20

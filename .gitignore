@@ -26,8 +26,8 @@ __pycache__/
 build/
 wheels/
 
-# Local data (SQLite fallback, mem0 vector store)
-data/
+# Local backend data (SQLite fallback, mem0 vector store)
+/DayFlow-backend/data/
 *.db
 
 # Vercel

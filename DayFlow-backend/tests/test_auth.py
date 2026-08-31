@@ -39,6 +39,14 @@ async def test_short_password_rejected(client: AsyncClient):
     assert res.status_code == 422
 
 
+async def test_password_too_long_for_bcrypt_is_rejected(client: AsyncClient):
+    res = await client.post(
+        "/auth/signup",
+        json={"name": "A", "email": "long@example.com", "password": "x" * 73},
+    )
+    assert res.status_code == 422
+
+
 async def test_forgot_password_is_uniform(client: AsyncClient):
     res = await client.post("/auth/forgot-password", json={"email": "nobody@example.com"})
     assert res.status_code == 200

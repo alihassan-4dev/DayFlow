@@ -1,6 +1,8 @@
 # DayFlow — Frontend
 
-Premium AI-powered daily task manager. **UI only** — no backend, auth, AI, voice, or notification services are connected yet; everything runs on mock data
+Premium AI-powered daily task manager connected to the DayFlow FastAPI backend.
+Authentication, task CRUD, AI chat, local preferences, and local task reminders
+are wired. Voice controls and real password-reset email delivery are not implemented.
 
 Stack: React Native · Expo SDK 54 · TypeScript · Expo Router · npm
 
@@ -9,6 +11,14 @@ Stack: React Native · Expo SDK 54 · TypeScript · Expo Router · npm
 ```bash
 npm install
 npm start        # then press a (Android), i (iOS), or scan the QR in Expo Go
+```
+
+For EAS builds, create `EXPO_PUBLIC_API_URL` in each EAS environment you use.
+The build profiles in `eas.json` select `development`, `preview`, and `production`
+explicitly. For example:
+
+```bash
+eas env:set --name EXPO_PUBLIC_API_URL --value https://your-api.fastapicloud.dev --environment production --visibility plaintext
 ```
 
 ## Structure
@@ -25,15 +35,17 @@ src/
   theme/                 # Theme system: 6 schemes + type/spacing tokens + context
   components/            # Reusable UI (Button, TextField, TaskCard, Chip, …)
   components/ai/         # AI identity: gradient orb, chat bubbles, typing dots
-  state/                 # TasksContext, PreferencesContext (in-memory, mock)
-  data/                  # Types + mock tasks, canned AI replies, notif previews
+  state/                 # Backend-synced tasks and persisted local preferences
+  data/                  # Shared types, defaults, suggestions, notif previews
+  api/                   # Backend client, auth token storage, task mapping
+  services/              # Local notification scheduling
   utils/                 # Formatting helpers
 ```
 
-## Notes for future wiring
+## Current limitations
 
-- `app/index.tsx` always redirects to welcome; branch on real session state later.
-- Auth screens use `setTimeout` to fake network calls — replace with API calls.
-- The AI screen's `send`/`toggleListening` in `app/(main)/ai.tsx` cycle canned replies from `src/data/mock.ts` — replace with AI + voice APIs.
-- The AI orb (`src/components/ai/AIOrb.tsx`) already supports the four states: idle, listening, processing, responding.
-- Theme choice persists via AsyncStorage; task/preference state is in-memory only.
+- The voice settings UI is present, but speech recognition and spoken replies are not wired.
+- Forgot-password calls the backend, but the backend does not yet send reset email.
+- Task mutations are optimistic. Failed creates roll back, while failed updates
+  and deletes re-sync from the backend and show the offline state when necessary.
+- Themes and preferences persist in AsyncStorage. Tasks persist in the backend.

@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, TextInputProps, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { layout, type } from '../theme/themes';
@@ -12,7 +12,10 @@ interface TextFieldProps extends TextInputProps {
   secure?: boolean;
 }
 
-export function TextField({ label, icon, error, secure, style, ...rest }: TextFieldProps) {
+export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
+  { label, icon, error, secure, style, ...rest },
+  ref
+) {
   const { theme } = useTheme();
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(!!secure);
@@ -45,6 +48,7 @@ export function TextField({ label, icon, error, secure, style, ...rest }: TextFi
           />
         ) : null}
         <TextInput
+          ref={ref}
           {...rest}
           secureTextEntry={hidden}
           onFocus={(e) => {
@@ -56,10 +60,17 @@ export function TextField({ label, icon, error, secure, style, ...rest }: TextFi
             rest.onBlur?.(e);
           }}
           placeholderTextColor={theme.colors.textTertiary}
+          selectionColor={theme.colors.accent}
+          cursorColor={theme.colors.accent}
           style={[styles.input, type.body, { color: theme.colors.text }, style]}
         />
         {secure ? (
-          <Pressable onPress={() => setHidden((h) => !h)} hitSlop={8}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+            onPress={() => setHidden((h) => !h)}
+            hitSlop={8}
+          >
             <Feather
               name={hidden ? 'eye' : 'eye-off'}
               size={16}
@@ -75,7 +86,7 @@ export function TextField({ label, icon, error, secure, style, ...rest }: TextFi
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: layout.space.lg },

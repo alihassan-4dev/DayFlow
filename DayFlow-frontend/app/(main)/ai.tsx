@@ -93,7 +93,7 @@ export default function AIScreen() {
     <Screen padded={false}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {/* Header */}
@@ -131,6 +131,9 @@ export default function AIScreen() {
             renderItem={({ item }) => <ChatBubble message={item} />}
             contentContainerStyle={styles.chatList}
             showsVerticalScrollIndicator={false}
+            automaticallyAdjustKeyboardInsets
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            keyboardShouldPersistTaps="handled"
             ListFooterComponent={
               aiState === 'processing' ? (
                 <View style={styles.typingWrap}>
@@ -172,6 +175,9 @@ export default function AIScreen() {
               style={[styles.input, type.body, { color: theme.colors.text }]}
               onSubmitEditing={() => send(input)}
               returnKeyType="send"
+              selectionColor={theme.colors.accent}
+              cursorColor={theme.colors.accent}
+              maxLength={4000}
             />
             <Pressable
               accessibilityRole="button"

@@ -6,6 +6,7 @@ import { api } from '../../src/api/client';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
 import { EmptyState } from '../../src/components/EmptyState';
+import { FormScrollView } from '../../src/components/FormScrollView';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { useTheme } from '../../src/theme/ThemeContext';
@@ -20,6 +21,7 @@ export default function ForgotPassword() {
   const [sent, setSent] = useState(false);
 
   const submit = async () => {
+    if (loading) return;
     if (!email.includes('@')) {
       setError('Enter a valid email address');
       return;
@@ -28,11 +30,11 @@ export default function ForgotPassword() {
     setLoading(true);
     try {
       await api.forgotPassword(email.trim());
+      setSent(true);
     } catch {
-      // Uniform response either way — never reveal whether the email exists.
+      setError('Can’t reach DayFlow right now. Check your connection and try again.');
     } finally {
       setLoading(false);
-      setSent(true);
     }
   };
 
@@ -52,7 +54,7 @@ export default function ForgotPassword() {
           <Button label="Back to sign in" variant="secondary" onPress={() => router.replace('/(auth)/login')} />
         </View>
       ) : (
-        <View style={styles.form}>
+        <FormScrollView contentContainerStyle={styles.form}>
           <AppText variant="display" style={styles.title}>
             Reset password
           </AppText>
@@ -68,9 +70,11 @@ export default function ForgotPassword() {
             value={email}
             onChangeText={setEmail}
             error={error}
+            returnKeyType="send"
+            onSubmitEditing={submit}
           />
           <Button label="Send reset link" onPress={submit} loading={loading} style={styles.cta} />
-        </View>
+        </FormScrollView>
       )}
     </Screen>
   );

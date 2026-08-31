@@ -50,6 +50,22 @@ async def test_invalid_time_rejected(client: AsyncClient, auth_headers: dict):
     assert res.status_code == 422
 
 
+async def test_task_input_is_normalized(client: AsyncClient, auth_headers: dict):
+    res = await client.post(
+        "/tasks",
+        json={"title": "  Plan tomorrow  ", "due_date": TODAY, "time": "7:5"},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["title"] == "Plan tomorrow"
+    assert res.json()["time"] == "07:05"
+
+    res = await client.post(
+        "/tasks", json={"title": "   ", "due_date": TODAY}, headers=auth_headers
+    )
+    assert res.status_code == 422
+
+
 async def test_tasks_are_isolated_per_user(client: AsyncClient, auth_headers: dict):
     res = await client.post(
         "/tasks", json={"title": "Mine", "due_date": TODAY}, headers=auth_headers

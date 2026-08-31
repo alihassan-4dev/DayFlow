@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.db.models import Priority, Task, User
 from app.schemas.ai import ChatAction, ChatMessage, ChatResponse
-from app.schemas.task import TaskOut
+from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
 from app.services import memory
 
 logger = logging.getLogger(__name__)
@@ -99,8 +99,7 @@ class _ToolRunner:
 
     async def _create_task(self, title: str, due_date: str, time: str = "09:00",
                            priority: str = "medium", reminder: bool = True, note: str = "") -> str:
-        task = Task(
-            user_id=self.user.id,
+        payload = TaskCreate(
             title=title.strip(),
             note=note.strip() or None,
             due_date=date.fromisoformat(due_date),
@@ -108,6 +107,7 @@ class _ToolRunner:
             priority=Priority(priority),
             reminder=reminder,
         )
+        task = Task(user_id=self.user.id, **payload.model_dump())
         self.db.add(task)
         await self.db.commit()
         await self.db.refresh(task)
@@ -116,16 +116,21 @@ class _ToolRunner:
     async def _update_task(self, task_id: int, title: str = "", due_date: str = "",
                            time: str = "", priority: str = "", note: str = "") -> str:
         task = await self._owned(task_id)
-        if title:
-            task.title = title.strip()
-        if due_date:
-            task.due_date = date.fromisoformat(due_date)
-        if time:
-            task.time = time
-        if priority:
-            task.priority = Priority(priority)
-        if note:
-            task.note = note.strip()
+        changes = TaskUpdate(
+            **{
+                key: value
+                for key, value in {
+                    "title": title or None,
+                    "due_date": date.fromisoformat(due_date) if due_date else None,
+                    "time": time or None,
+                    "priority": Priority(priority) if priority else None,
+                    "note": note.strip() or None,
+                }.items()
+                if value is not None
+            }
+        )
+        for key, value in changes.model_dump(exclude_unset=True).items():
+            setattr(task, key, value)
         await self.db.commit()
         return f"Updated task {task.id}: now on {task.due_date} at {task.time}"
 

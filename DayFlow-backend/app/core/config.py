@@ -1,6 +1,7 @@
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,7 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "DayFlow API"
-    debug: bool = False
+    app_environment: Literal["development", "test", "production"] = "development"
+    app_debug: bool = False
 
     # Neon Postgres connection string (paste it verbatim — it's normalized
     # for asyncpg below). Falls back to SQLite in ./data so the API runs
@@ -28,6 +30,7 @@ class Settings(BaseSettings):
 
     # mem0 platform key (optional — memory is disabled without it)
     mem0_api_key: str = ""
+    local_memory_enabled: bool = False
 
     cors_origins: list[str] = ["*"]
 
@@ -56,6 +59,19 @@ class Settings(BaseSettings):
                 keep.append("ssl=require")
             v = base + ("?" + "&".join(keep) if keep else "")
         return v
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        """Fail at startup instead of silently using unsafe production defaults."""
+        if self.app_environment != "production":
+            return self
+        if self.database_url.startswith("sqlite"):
+            raise ValueError("DATABASE_URL must point to Postgres in production")
+        if self.jwt_secret == "change-me-in-production" or len(self.jwt_secret) < 32:
+            raise ValueError("JWT_SECRET must be a random value of at least 32 characters")
+        if self.app_debug:
+            raise ValueError("APP_DEBUG must be false in production")
+        return self
 
 
 @lru_cache

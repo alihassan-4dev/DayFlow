@@ -16,7 +16,7 @@ function resolveBaseUrl(): string {
   if (fromEnv) return fromEnv.replace(/\/$/, '');
   const host = Constants.expoConfig?.hostUri?.split(':')[0];
   if (host) return `http://${host}:8000`;
-  return 'http://localhost:8000';
+  return __DEV__ ? 'http://localhost:8000' : '';
 }
 
 export const API_URL = resolveBaseUrl();
@@ -54,6 +54,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (!API_URL) {
+    throw new ApiError(
+      0,
+      'DayFlow API is not configured. Set EXPO_PUBLIC_API_URL for this build.'
+    );
+  }
   const token = await loadToken();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,

@@ -51,6 +51,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
+  const tasksRef = useRef<Task[]>([]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
 
   // Keep the latest notification prefs available to async callbacks.
   const notifOpts = useRef({
@@ -94,10 +99,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
   // Reschedule everything when notification preferences change.
   useEffect(() => {
-    setTasks((current) => {
-      syncAllReminders(current);
-      return current;
-    });
+    syncAllReminders(tasksRef.current);
   }, [prefs.notificationsEnabled, prefs.notificationTone, prefs.remindBefore, syncAllReminders]);
 
   const addTask = useCallback((task: Omit<Task, 'id' | 'completed'>) => {
@@ -113,45 +115,68 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       .createTask(task)
       .then((created) => {
         setTasks((prev) => prev.map((t) => (t.id === localId ? created : t)));
+        setOffline(false);
         syncTaskReminder(created, notifOpts.current);
       })
-      .catch(() => setOffline(true));
+      .catch(() => {
+        setTasks((prev) => prev.filter((t) => t.id !== localId));
+        cancelTaskReminder(localId);
+        setOffline(true);
+      });
   }, []);
 
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
+    const current = tasks.find((task) => task.id === id);
+    if (!current) return;
+    const optimistic = { ...current, ...patch };
     animate();
-    setTasks((prev) => {
-      const next = prev.map((t) => (t.id === id ? { ...t, ...patch } : t));
-      const updated = next.find((t) => t.id === id);
-      if (updated) syncTaskReminder(updated, notifOpts.current);
-      return next;
-    });
+    setTasks((prev) => prev.map((task) => (task.id === id ? optimistic : task)));
+    syncTaskReminder(optimistic, notifOpts.current);
     if (!id.startsWith('local-')) {
-      api.updateTask(id, patch).catch(() => setOffline(true));
+      api
+        .updateTask(id, patch)
+        .then((updated) => {
+          setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
+          setOffline(false);
+        })
+        .catch(() => {
+          setOffline(true);
+          void refresh();
+        });
     }
-  }, []);
+  }, [refresh, tasks]);
 
   const toggleTask = useCallback((id: string) => {
-    setTasks((prev) => {
-      const task = prev.find((t) => t.id === id);
-      if (!task) return prev;
-      const toggled = { ...task, completed: !task.completed };
-      syncTaskReminder(toggled, notifOpts.current);
-      if (!id.startsWith('local-')) {
-        api.updateTask(id, { completed: toggled.completed }).catch(() => setOffline(true));
-      }
-      return prev.map((t) => (t.id === id ? toggled : t));
-    });
-  }, []);
+    const current = tasks.find((task) => task.id === id);
+    if (!current) return;
+    const toggled = { ...current, completed: !current.completed };
+    setTasks((prev) => prev.map((task) => (task.id === id ? toggled : task)));
+    syncTaskReminder(toggled, notifOpts.current);
+    if (!id.startsWith('local-')) {
+      api
+        .updateTask(id, { completed: toggled.completed })
+        .then(() => setOffline(false))
+        .catch(() => {
+          setOffline(true);
+          void refresh();
+        });
+    }
+  }, [refresh, tasks]);
 
   const deleteTask = useCallback((id: string) => {
     animate();
     setTasks((prev) => prev.filter((t) => t.id !== id));
     cancelTaskReminder(id);
     if (!id.startsWith('local-')) {
-      api.deleteTask(id).catch(() => setOffline(true));
+      api
+        .deleteTask(id)
+        .then(() => setOffline(false))
+        .catch(() => {
+          setOffline(true);
+          void refresh();
+        });
     }
-  }, []);
+  }, [refresh]);
 
   const clear = useCallback(() => {
     setTasks([]);

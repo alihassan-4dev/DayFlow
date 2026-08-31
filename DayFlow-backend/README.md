@@ -9,7 +9,9 @@ LangChain + Groq · mem0 (local: Groq + sentence-transformers + Chroma) · uv
 ## Setup
 
 ```bash
-uv sync                       # install everything
+uv sync                       # API + development/test dependencies
+# Optional local mem0 embeddings/Chroma support:
+uv sync --group local-memory
 copy .env.example .env        # then fill in the values
 uv run alembic upgrade head   # create tables (Neon or local SQLite)
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -21,10 +23,14 @@ Interactive API docs: http://localhost:8000/docs
 
 | Variable       | What                                                             |
 | -------------- | ---------------------------------------------------------------- |
+| `APP_ENVIRONMENT` | `development`, `test`, or `production`.                     |
+| `APP_DEBUG`    | Enable FastAPI debug responses locally; always `false` in production. |
 | `DATABASE_URL` | Neon connection string, pasted as-is (auto-adapted for asyncpg). Empty = local SQLite. |
-| `JWT_SECRET`   | Any long random string.                                          |
-| `GROQ_API_KEY` | Free key from https://console.groq.com — powers the assistant *and* local memory. |
-| `MEM0_API_KEY` | Optional. Set to use hosted mem0 instead of the local SDK.       |
+| `JWT_SECRET`   | A random value of at least 32 characters in production.          |
+| `GROQ_API_KEY` | Key from https://console.groq.com — powers the assistant.         |
+| `MEM0_API_KEY` | Optional. Set to use hosted mem0 instead of local memory.         |
+| `LOCAL_MEMORY_ENABLED` | Set `true` only after installing the `local-memory` group. |
+| `CORS_ORIGINS` | JSON list of allowed web origins, for example `["https://example.com"]`. |
 
 Without `GROQ_API_KEY` the API still runs; `/ai/chat` returns a friendly
 "not configured" reply and tasks work normally.
@@ -37,27 +43,37 @@ Without `GROQ_API_KEY` the API still runs; `/ai/chat` returns a friendly
   the user's tasks via tool calls; the response carries the refreshed task list.
 - `GET /health`
 
-## Deploy to Vercel (free)
+## Deploy to FastAPI Cloud
 
-The repo ships Vercel-ready: [vercel.json](vercel.json) routes everything to the
-ASGI entrypoint [api/index.py](api/index.py), and [requirements.txt](requirements.txt)
-holds the serverless dependency set.
+The project uses FastAPI Cloud's supported `pyproject.toml` + `uv.lock` workflow.
+The ASGI entrypoint is explicitly configured as `app.main:app`, Python is pinned
+to 3.12, and `.fastapicloudignore` excludes secrets and local-only artifacts.
 
-1. Push the monorepo to GitHub.
-2. On https://vercel.com → **Add New → Project** → import the repo.
-3. Set **Root Directory** to `DayFlow-backend` (Framework preset: Other).
-4. Add Environment Variables:
-   - `DATABASE_URL` — your Neon connection string (paste as-is)
-   - `JWT_SECRET` — a long random string
-   - `GROQ_API_KEY` — from console.groq.com
-   - `MEM0_API_KEY` — optional (hosted memory; see note below)
-5. Deploy. Your API lives at `https://<project>.vercel.app` — point the app at it
-   via `EXPO_PUBLIC_API_URL` in the frontend `.env` / `eas.json`.
+1. Create a production Postgres database (Neon works) and copy its connection URL.
+2. From `DayFlow-backend`, apply the schema to that database before the first deploy:
 
-**Memory on Vercel:** the local mem0 stack (sentence-transformers + Chroma) is too
-heavy for serverless, so it's a local-only dependency group. On Vercel, set
-`MEM0_API_KEY` to keep long-term memory via the hosted mem0 platform, or leave it
-unset — the assistant works fine without memory.
+   ```bash
+   $env:DATABASE_URL="postgresql://..."  # PowerShell
+   uv run alembic upgrade head
+   ```
+
+3. Deploy from the backend directory with `uv run fastapi deploy`. If deploying
+   through GitHub, set the FastAPI Cloud Application Directory to `DayFlow-backend`.
+4. In FastAPI Cloud, configure:
+   - `APP_ENVIRONMENT=production`
+   - `APP_DEBUG=false`
+   - `DATABASE_URL` as a secret
+   - `JWT_SECRET` as a secret (generate with `python -c "import secrets; print(secrets.token_hex(32))"`)
+   - `GROQ_API_KEY` as a secret
+   - `MEM0_API_KEY` as an optional secret for durable hosted memory
+   - `CORS_ORIGINS` as a JSON list if a browser frontend will call the API
+5. Set the mobile app's `EXPO_PUBLIC_API_URL` to the resulting
+   `https://<app>.fastapicloud.dev` URL and make a new app build.
+
+Production intentionally does not create tables during application startup.
+Run Alembic separately for each schema change so gradual deployments stay safe.
+Local sentence-transformer/Chroma memory is not installed in the cloud; use hosted
+mem0 for durable memory, or leave `MEM0_API_KEY` empty to run without memory.
 
 ## Tests & migrations
 

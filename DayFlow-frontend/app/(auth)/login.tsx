@@ -1,26 +1,31 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { api, ApiError } from '../../src/api/client';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
+import { FormScrollView } from '../../src/components/FormScrollView';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { usePreferences } from '../../src/state/PreferencesContext';
+import { useTasks } from '../../src/state/TasksContext';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { layout } from '../../src/theme/themes';
 
 export default function Login() {
   const { theme } = useTheme();
   const { setPref } = usePreferences();
+  const { refresh } = useTasks();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const submit = async () => {
+    if (loading) return;
     if (!email.includes('@')) {
       setError('Enter a valid email address');
       return;
@@ -30,6 +35,7 @@ export default function Login() {
     try {
       const user = await api.login(email.trim(), password);
       if (user.name) setPref('name', user.name);
+      await refresh();
       router.replace('/(main)/tasks');
     } catch (e) {
       setError(
@@ -47,10 +53,8 @@ export default function Login() {
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={24} color={theme.colors.text} />
       </Pressable>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
+      <FormScrollView
         contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
       >
         <AppText variant="display" style={styles.title}>
           Welcome back
@@ -68,14 +72,19 @@ export default function Login() {
           value={email}
           onChangeText={setEmail}
           error={error}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
         <TextField
+          ref={passwordRef}
           label="Password"
           icon="lock"
           placeholder="Your password"
           secure
           value={password}
           onChangeText={setPassword}
+          returnKeyType="go"
+          onSubmitEditing={submit}
         />
 
         <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={styles.forgot}>
@@ -96,7 +105,7 @@ export default function Login() {
             </AppText>
           </Pressable>
         </View>
-      </ScrollView>
+      </FormScrollView>
     </Screen>
   );
 }

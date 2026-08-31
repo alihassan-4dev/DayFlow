@@ -1,10 +1,10 @@
 """Long-term user memory via the local mem0 SDK.
 
-Runs fully self-hosted: Groq extracts the memories, a local
+When LOCAL_MEMORY_ENABLED is true, Groq extracts memories, a local
 sentence-transformers model embeds them, and Chroma persists them on disk
 (./data/mem0). If MEM0_API_KEY is set, the hosted mem0 platform is used
-instead. With neither Groq nor a platform key, memory quietly turns off —
-the assistant still works, it just doesn't remember across sessions.
+instead. Otherwise memory quietly turns off — the assistant still works,
+it just doesn't remember across sessions.
 
 All calls here are synchronous (the local SDK is sync); the AI service
 runs them in a thread so the event loop never blocks.
@@ -31,8 +31,8 @@ def _client():
         except Exception:
             logger.exception("mem0 platform client failed; trying local")
 
-    # Local OSS mem0 — needs Groq for memory extraction.
-    if not settings.groq_api_key:
+    # Local OSS mem0 is opt-in because its model/vector dependencies are large.
+    if not settings.local_memory_enabled or not settings.groq_api_key:
         return None
     try:
         from mem0 import Memory

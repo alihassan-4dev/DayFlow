@@ -16,7 +16,14 @@ def _validate_time(value: str) -> str:
         raise ValueError(_TIME_ERROR)
     if not (0 <= int(hour) <= 23 and 0 <= int(minute) <= 59):
         raise ValueError(_TIME_ERROR)
-    return f"{int(hour):02d}:{minute}"
+    return f"{int(hour):02d}:{int(minute):02d}"
+
+
+def _validate_title(value: str) -> str:
+    value = value.strip()
+    if not value:
+        raise ValueError("title must not be blank")
+    return value
 
 
 class TaskCreate(BaseModel):
@@ -32,6 +39,11 @@ class TaskCreate(BaseModel):
     def check_time(cls, v: str) -> str:
         return _validate_time(v)
 
+    @field_validator("title")
+    @classmethod
+    def check_title(cls, v: str) -> str:
+        return _validate_title(v)
+
 
 class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
@@ -46,6 +58,11 @@ class TaskUpdate(BaseModel):
     @classmethod
     def check_time(cls, v: str | None) -> str | None:
         return None if v is None else _validate_time(v)
+
+    @field_validator("title")
+    @classmethod
+    def check_title(cls, v: str | None) -> str | None:
+        return None if v is None else _validate_title(v)
 
 
 class TaskOut(BaseModel):

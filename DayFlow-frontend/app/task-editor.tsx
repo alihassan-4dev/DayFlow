@@ -1,10 +1,11 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { AppText } from '../src/components/AppText';
 import { Button } from '../src/components/Button';
 import { Chip } from '../src/components/Chip';
+import { FormScrollView } from '../src/components/FormScrollView';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
 import { Priority } from '../src/data/types';
@@ -14,7 +15,23 @@ import { layout } from '../src/theme/themes';
 import { formatTime, priorityMeta } from '../src/utils/format';
 
 const TIME_SLOTS = ['07:00', '09:00', '12:00', '15:00', '18:00', '20:00'];
-const DAYS: ('today' | string)[] = ['today', 'Tomorrow', 'Sat, Sep 5'];
+function upcomingDayLabel(daysAhead: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+const DAYS: ('today' | string)[] = [
+  'today',
+  'Tomorrow',
+  upcomingDayLabel(2),
+  upcomingDayLabel(3),
+  upcomingDayLabel(4),
+];
 const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
 
 export default function TaskEditor() {
@@ -33,6 +50,7 @@ export default function TaskEditor() {
   const [priority, setPriority] = useState<Priority>(existing?.priority ?? 'medium');
   const [reminder, setReminder] = useState(existing?.reminder ?? true);
   const [titleError, setTitleError] = useState<string | undefined>();
+  const noteRef = useRef<TextInput>(null);
 
   const save = () => {
     if (!title.trim()) {
@@ -69,7 +87,7 @@ export default function TaskEditor() {
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <FormScrollView>
         <TextField
           label="Task"
           placeholder="What needs doing?"
@@ -80,12 +98,16 @@ export default function TaskEditor() {
           }}
           error={titleError}
           autoFocus={!editing}
+          returnKeyType="next"
+          onSubmitEditing={() => noteRef.current?.focus()}
         />
         <TextField
+          ref={noteRef}
           label="Note (optional)"
           placeholder="Any details worth remembering"
           value={note}
           onChangeText={setNote}
+          returnKeyType="done"
         />
 
         <AppText variant="caption" tone="secondary" style={styles.label}>
@@ -154,7 +176,7 @@ export default function TaskEditor() {
         {editing ? (
           <Button label="Delete task" variant="danger" onPress={remove} style={styles.delete} />
         ) : null}
-      </ScrollView>
+      </FormScrollView>
     </Screen>
   );
 }

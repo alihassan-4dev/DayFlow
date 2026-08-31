@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AppText } from '../src/components/AppText';
 import { Button } from '../src/components/Button';
 import { Chip } from '../src/components/Chip';
+import { FormScrollView } from '../src/components/FormScrollView';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
 import { notificationPreviews } from '../src/data/content';
@@ -66,21 +67,22 @@ export default function Onboarding() {
 
   return (
     <Screen keyboardAvoiding safeBottom>
-      {/* Step indicator */}
-      <View style={styles.dots}>
-        {[0, 1, 2].map((i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              {
-                backgroundColor: i <= step ? theme.colors.accent : theme.colors.border,
-                width: i === step ? 24 : 8,
-              },
-            ]}
-          />
-        ))}
-      </View>
+      <FormScrollView>
+        {/* Step indicator */}
+        <View style={styles.dots}>
+          {[0, 1, 2].map((i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: i <= step ? theme.colors.accent : theme.colors.border,
+                  width: i === step ? 24 : 8,
+                },
+              ]}
+            />
+          ))}
+        </View>
 
       <View style={styles.body}>
         {step === 0 ? (
@@ -97,6 +99,8 @@ export default function Onboarding() {
               value={name}
               onChangeText={setName}
               autoFocus
+              returnKeyType="next"
+              onSubmitEditing={() => setStep(1)}
             />
           </>
         ) : null}
@@ -153,15 +157,16 @@ export default function Onboarding() {
         ) : null}
       </View>
 
-      <View style={styles.footer}>
-        <Button
-          label={step === 2 ? 'Start my day' : 'Continue'}
-          onPress={() => (step === 2 ? finish() : setStep((s) => s + 1))}
-        />
-        {step > 0 ? (
-          <Button label="Back" variant="ghost" onPress={() => setStep((s) => s - 1)} style={styles.backBtn} />
-        ) : null}
-      </View>
+        <View style={styles.footer}>
+          <Button
+            label={step === 2 ? 'Start my day' : 'Continue'}
+            onPress={() => (step === 2 ? finish() : setStep((s) => s + 1))}
+          />
+          {step > 0 ? (
+            <Button label="Back" variant="ghost" onPress={() => setStep((s) => s - 1)} style={styles.backBtn} />
+          ) : null}
+        </View>
+      </FormScrollView>
     </Screen>
   );
 }

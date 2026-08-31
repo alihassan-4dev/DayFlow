@@ -1,10 +1,11 @@
 ﻿import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { api, ApiError } from '../../src/api/client';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
+import { FormScrollView } from '../../src/components/FormScrollView';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { usePreferences } from '../../src/state/PreferencesContext';
@@ -20,8 +21,11 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   const submit = async () => {
+    if (loading) return;
     const next: typeof errors = {};
     if (!email.includes('@')) next.email = 'Enter a valid email address';
     if (password.length < 8) next.password = 'Use at least 8 characters';
@@ -50,10 +54,8 @@ export default function SignUp() {
       <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
         <Feather name="chevron-left" size={24} color={theme.colors.text} />
       </Pressable>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
+      <FormScrollView
         contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
       >
         <AppText variant="display" style={styles.title}>
           Create your account
@@ -68,8 +70,11 @@ export default function SignUp() {
           placeholder="What should we call you?"
           value={name}
           onChangeText={setName}
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
         />
         <TextField
+          ref={emailRef}
           label="Email"
           icon="mail"
           placeholder="you@example.com"
@@ -78,8 +83,11 @@ export default function SignUp() {
           value={email}
           onChangeText={setEmail}
           error={errors.email}
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
         />
         <TextField
+          ref={passwordRef}
           label="Password"
           icon="lock"
           placeholder="At least 8 characters"
@@ -87,6 +95,8 @@ export default function SignUp() {
           value={password}
           onChangeText={setPassword}
           error={errors.password}
+          returnKeyType="go"
+          onSubmitEditing={submit}
         />
 
         <Button label="Continue" onPress={submit} loading={loading} style={styles.cta} />
@@ -101,7 +111,7 @@ export default function SignUp() {
             </AppText>
           </Pressable>
         </View>
-      </ScrollView>
+      </FormScrollView>
     </Screen>
   );
 }

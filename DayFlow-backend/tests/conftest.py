@@ -1,9 +1,11 @@
 import os
 
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_dayflow.db"
-os.environ["JWT_SECRET"] = "test-secret"
+os.environ["JWT_SECRET"] = "test-secret-that-is-at-least-32-bytes"
 os.environ["GROQ_API_KEY"] = ""
 os.environ["MEM0_API_KEY"] = ""
+os.environ["APP_ENVIRONMENT"] = "test"
+os.environ["APP_DEBUG"] = "false"
 
 import pytest
 from httpx import ASGITransport, AsyncClient

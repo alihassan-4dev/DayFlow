@@ -14,20 +14,17 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Local artifacts (SQLite fallback, mem0 store) live under ./data.
-    # Serverless filesystems (Vercel) are read-only — Postgres is used there.
-    try:
+    if settings.app_environment != "production":
+        # Local artifacts (SQLite fallback, mem0 store) live under ./data.
         Path("data").mkdir(exist_ok=True)
-    except OSError:
-        pass
-    # Convenience for dev / first run. Production schema changes go through Alembic.
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        # Convenience for development and tests. Production uses Alembic.
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(title=settings.app_name, debug=settings.app_debug, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
