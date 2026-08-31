@@ -8,7 +8,7 @@ import { FormScrollView } from '../src/components/FormScrollView';
 import { Screen } from '../src/components/Screen';
 import { TextField } from '../src/components/TextField';
 import { notificationPreviews } from '../src/data/content';
-import { requestNotificationPermission } from '../src/services/notifications';
+import { requestNotificationPermission, syncPushPreferences } from '../src/services/notifications';
 import { NotificationTone } from '../src/data/types';
 import { usePreferences } from '../src/state/PreferencesContext';
 import { useTheme } from '../src/theme/ThemeContext';
@@ -46,6 +46,12 @@ export default function Onboarding() {
     // Ask for the OS notification permission while the "setting up" state shows.
     const granted = await requestNotificationPermission();
     setPref('notificationsEnabled', granted);
+    await syncPushPreferences({
+      ...prefs,
+      name: name.trim() || 'there',
+      notificationTone: tone,
+      notificationsEnabled: granted,
+    });
     setTimeout(() => router.replace('/(main)/tasks'), 900);
   };
 

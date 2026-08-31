@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { Priority, Task } from '../data/types';
+import { NotificationTone, Priority, Task } from '../data/types';
 
 const TOKEN_KEY = 'dayflow.token';
 
@@ -183,6 +183,41 @@ export const api = {
 
   async hasSession(): Promise<boolean> {
     return (await loadToken()) != null;
+  },
+
+  async registerPushDevice(
+    token: string,
+    platform: 'android' | 'ios',
+    timezone: string
+  ): Promise<void> {
+    await request('/notifications/devices', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform, timezone }),
+    });
+  },
+
+  async unregisterPushDevice(token: string): Promise<void> {
+    await request('/notifications/devices', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  async updateNotificationPreferences(value: {
+    enabled: boolean;
+    tone: NotificationTone;
+    remind_before: 10 | 20 | 30;
+    timezone: string;
+    quiet_hours_enabled: boolean;
+    quiet_start: string;
+    quiet_end: string;
+    daily_summary_enabled: boolean;
+    daily_summary_time: string;
+  }): Promise<void> {
+    await request('/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(value),
+    });
   },
 
   async listTasks(): Promise<Task[]> {

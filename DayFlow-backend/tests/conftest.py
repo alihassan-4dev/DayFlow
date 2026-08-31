@@ -6,11 +6,12 @@ os.environ["GROQ_API_KEY"] = ""
 os.environ["MEM0_API_KEY"] = ""
 os.environ["APP_ENVIRONMENT"] = "test"
 os.environ["APP_DEBUG"] = "false"
+os.environ["INTERNAL_SCHEDULER_SECRET"] = "test-scheduler-secret"
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.db.base import Base, engine
+from app.db.base import Base, SessionLocal, engine
 from app.main import app
 
 
@@ -27,6 +28,13 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture
+async def db():
+    """A session for driving the notification worker at a controlled clock."""
+    async with SessionLocal() as session:
+        yield session
 
 
 @pytest.fixture

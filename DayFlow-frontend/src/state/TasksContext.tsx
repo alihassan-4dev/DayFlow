@@ -4,18 +4,11 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { LayoutAnimation, Platform, UIManager } from 'react-native';
 import { api } from '../api/client';
 import { Task } from '../data/types';
-import {
-  cancelAllReminders,
-  cancelTaskReminder,
-  syncTaskReminder,
-} from '../services/notifications';
-import { usePreferences } from './PreferencesContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -37,7 +30,7 @@ interface TasksContextValue {
   deleteTask: (id: string) => void;
   /** Re-fetch from the backend (e.g. after the AI changed tasks). */
   refresh: () => Promise<void>;
-  /** Drop local state and reminders (sign-out). */
+  /** Drop local task state on sign-out. */
   clear: () => void;
 }
 
@@ -47,34 +40,9 @@ const animate = () =>
   LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
-  const { prefs } = usePreferences();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
-  const tasksRef = useRef<Task[]>([]);
-
-  useEffect(() => {
-    tasksRef.current = tasks;
-  }, [tasks]);
-
-  // Keep the latest notification prefs available to async callbacks.
-  const notifOpts = useRef({
-    enabled: prefs.notificationsEnabled,
-    tone: prefs.notificationTone,
-    remindBefore: prefs.remindBefore,
-  });
-  useEffect(() => {
-    notifOpts.current = {
-      enabled: prefs.notificationsEnabled,
-      tone: prefs.notificationTone,
-      remindBefore: prefs.remindBefore,
-    };
-  }, [prefs.notificationsEnabled, prefs.notificationTone, prefs.remindBefore]);
-
-  const syncAllReminders = useCallback((list: Task[]) => {
-    list.forEach((t) => syncTaskReminder(t, notifOpts.current));
-  }, []);
-
   const refresh = useCallback(async () => {
     try {
       if (!(await api.hasSession())) {
@@ -85,22 +53,16 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       animate();
       setTasks(fresh);
       setOffline(false);
-      syncAllReminders(fresh);
     } catch {
       setOffline(true);
     } finally {
       setLoading(false);
     }
-  }, [syncAllReminders]);
+  }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
-
-  // Reschedule everything when notification preferences change.
-  useEffect(() => {
-    syncAllReminders(tasksRef.current);
-  }, [prefs.notificationsEnabled, prefs.notificationTone, prefs.remindBefore, syncAllReminders]);
 
   const addTask = useCallback((task: Omit<Task, 'id' | 'completed'>) => {
     // Optimistic insert; replaced by the server row when it lands.
@@ -116,11 +78,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       .then((created) => {
         setTasks((prev) => prev.map((t) => (t.id === localId ? created : t)));
         setOffline(false);
-        syncTaskReminder(created, notifOpts.current);
       })
       .catch(() => {
         setTasks((prev) => prev.filter((t) => t.id !== localId));
-        cancelTaskReminder(localId);
         setOffline(true);
       });
   }, []);
@@ -131,7 +91,6 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     const optimistic = { ...current, ...patch };
     animate();
     setTasks((prev) => prev.map((task) => (task.id === id ? optimistic : task)));
-    syncTaskReminder(optimistic, notifOpts.current);
     if (!id.startsWith('local-')) {
       api
         .updateTask(id, patch)
@@ -151,7 +110,6 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     if (!current) return;
     const toggled = { ...current, completed: !current.completed };
     setTasks((prev) => prev.map((task) => (task.id === id ? toggled : task)));
-    syncTaskReminder(toggled, notifOpts.current);
     if (!id.startsWith('local-')) {
       api
         .updateTask(id, { completed: toggled.completed })
@@ -166,7 +124,6 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const deleteTask = useCallback((id: string) => {
     animate();
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    cancelTaskReminder(id);
     if (!id.startsWith('local-')) {
       api
         .deleteTask(id)
@@ -182,7 +139,6 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     setTasks([]);
     setLoading(true);
     setOffline(false);
-    cancelAllReminders();
   }, []);
 
   const value = useMemo(() => {

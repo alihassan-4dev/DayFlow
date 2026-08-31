@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import ai, auth, tasks
+from app.api.routes import ai, auth, notifications, tasks
 from app.core.config import get_settings
 from app.db import models  # noqa: F401 — register models with Base.metadata
 from app.db.base import Base, engine
@@ -37,6 +37,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(tasks.router)
 app.include_router(ai.router)
+app.include_router(notifications.router)
+app.include_router(notifications.internal_router)
 
 
 @app.get("/health", tags=["meta"])

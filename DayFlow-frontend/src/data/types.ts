@@ -32,7 +32,12 @@ export interface Preferences {
   notificationsEnabled: boolean;
   notificationTone: NotificationTone;
   remindBefore: 10 | 20 | 30;
+  quietHoursEnabled: boolean;
+  /** 24h "HH:MM" in the user's own timezone */
+  quietStart: string;
+  quietEnd: string;
   dailySummary: boolean;
+  dailySummaryTime: string;
   aiPersonality: AIPersonality;
   aiSuggestions: boolean;
   aiAutoSchedule: boolean;

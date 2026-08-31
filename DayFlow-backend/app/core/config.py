@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     mem0_api_key: str = ""
     local_memory_enabled: bool = False
 
+    # Backend-driven push notifications (Expo Push Service + QStash).
+    push_notifications_enabled: bool = False
+    expo_push_access_token: str = ""
+    qstash_current_signing_key: str = ""
+    qstash_next_signing_key: str = ""
+    internal_scheduler_secret: str = ""
+    notification_grace_minutes: int = 30
+
     cors_origins: list[str] = ["*"]
 
     @field_validator("database_url", mode="before")
@@ -71,6 +79,17 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET must be a random value of at least 32 characters")
         if self.app_debug:
             raise ValueError("APP_DEBUG must be false in production")
+        if self.push_notifications_enabled:
+            if not self.groq_api_key:
+                raise ValueError("GROQ_API_KEY is required when push notifications are enabled")
+            if not (
+                (self.qstash_current_signing_key and self.qstash_next_signing_key)
+                or self.internal_scheduler_secret
+            ):
+                raise ValueError(
+                    "Configure QStash signing keys or INTERNAL_SCHEDULER_SECRET "
+                    "when push notifications are enabled"
+                )
         return self
 
 

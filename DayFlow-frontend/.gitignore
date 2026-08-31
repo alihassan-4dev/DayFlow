@@ -29,6 +29,10 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+# Never commit the private Firebase service-account key. google-services.json
+# is the public client configuration and is intentionally not ignored.
+*firebase-adminsdk*.json
+service-account*.json
 
 # local env files
 .env

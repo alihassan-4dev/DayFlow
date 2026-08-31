@@ -6,12 +6,14 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PreferencesProvider } from '../src/state/PreferencesContext';
+import { onNotificationOpened, syncPushPreferences } from '../src/services/notifications';
+import { usePreferences } from '../src/state/PreferencesContext';
 import { TasksProvider } from '../src/state/TasksContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
@@ -19,6 +21,24 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function RootNavigator() {
   const { theme } = useTheme();
+  const { prefs, ready } = usePreferences();
+  const router = useRouter();
+
+  useEffect(() => onNotificationOpened(() => router.push('/(main)/tasks')), [router]);
+
+  useEffect(() => {
+    if (ready) void syncPushPreferences(prefs);
+  }, [
+    ready,
+    prefs.notificationsEnabled,
+    prefs.notificationTone,
+    prefs.remindBefore,
+    prefs.quietHoursEnabled,
+    prefs.quietStart,
+    prefs.quietEnd,
+    prefs.dailySummary,
+    prefs.dailySummaryTime,
+  ]);
 
   return (
     <>

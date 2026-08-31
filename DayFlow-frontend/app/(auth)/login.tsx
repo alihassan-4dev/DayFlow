@@ -9,13 +9,14 @@ import { FormScrollView } from '../../src/components/FormScrollView';
 import { Screen } from '../../src/components/Screen';
 import { TextField } from '../../src/components/TextField';
 import { usePreferences } from '../../src/state/PreferencesContext';
+import { syncPushPreferences } from '../../src/services/notifications';
 import { useTasks } from '../../src/state/TasksContext';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { layout } from '../../src/theme/themes';
 
 export default function Login() {
   const { theme } = useTheme();
-  const { setPref } = usePreferences();
+  const { prefs, setPref } = usePreferences();
   const { refresh } = useTasks();
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -35,6 +36,7 @@ export default function Login() {
     try {
       const user = await api.login(email.trim(), password);
       if (user.name) setPref('name', user.name);
+      await syncPushPreferences(prefs);
       await refresh();
       router.replace('/(main)/tasks');
     } catch (e) {

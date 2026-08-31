@@ -1,84 +1,91 @@
-# DayFlow — Backend
+# DayFlow Backend
 
-FastAPI backend for the DayFlow app: JWT auth, task CRUD, and an AI assistant
-(LangChain + Groq tool-calling) with local long-term memory (mem0 OSS).
+FastAPI API for authentication, task CRUD, the Groq assistant, and backend-driven
+AI push reminders. It uses async SQLAlchemy, Alembic, Neon/Postgres in production,
+and SQLite for local development.
 
-**Stack:** FastAPI · SQLAlchemy 2 (async) · Alembic · Neon Postgres (SQLite fallback) ·
-LangChain + Groq · mem0 (local: Groq + sentence-transformers + Chroma) · uv
+## Local setup
 
-## Setup
-
-```bash
-uv sync                       # API + development/test dependencies
-# Optional local mem0 embeddings/Chroma support:
-uv sync --group local-memory
-copy .env.example .env        # then fill in the values
-uv run alembic upgrade head   # create tables (Neon or local SQLite)
+```powershell
+uv sync
+Copy-Item .env.example .env
+uv run alembic upgrade head
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Interactive API docs: http://localhost:8000/docs
-
-### .env essentials
-
-| Variable       | What                                                             |
-| -------------- | ---------------------------------------------------------------- |
-| `APP_ENVIRONMENT` | `development`, `test`, or `production`.                     |
-| `APP_DEBUG`    | Enable FastAPI debug responses locally; always `false` in production. |
-| `DATABASE_URL` | Neon connection string, pasted as-is (auto-adapted for asyncpg). Empty = local SQLite. |
-| `JWT_SECRET`   | A random value of at least 32 characters in production.          |
-| `GROQ_API_KEY` | Key from https://console.groq.com — powers the assistant.         |
-| `MEM0_API_KEY` | Optional. Set to use hosted mem0 instead of local memory.         |
-| `LOCAL_MEMORY_ENABLED` | Set `true` only after installing the `local-memory` group. |
-| `CORS_ORIGINS` | JSON list of allowed web origins, for example `["https://example.com"]`. |
-
-Without `GROQ_API_KEY` the API still runs; `/ai/chat` returns a friendly
-"not configured" reply and tasks work normally.
-
-## Endpoints
-
-- `POST /auth/signup` · `POST /auth/login` · `POST /auth/forgot-password` · `GET /auth/me`
-- `GET|POST /tasks` · `PATCH|DELETE /tasks/{id}`
-- `POST /ai/chat` — the assistant can create, reschedule, complete, and delete
-  the user's tasks via tool calls; the response carries the refreshed task list.
-- `GET /health`
+API documentation is available at `http://localhost:8000/docs`.
 
 ## Deploy to FastAPI Cloud
 
-The project uses FastAPI Cloud's supported `pyproject.toml` + `uv.lock` workflow.
-The ASGI entrypoint is explicitly configured as `app.main:app`, Python is pinned
-to 3.12, and `.fastapicloudignore` excludes secrets and local-only artifacts.
+1. Create a Neon Postgres database and copy its connection URL.
+2. Apply migrations from this directory:
 
-1. Create a production Postgres database (Neon works) and copy its connection URL.
-2. From `DayFlow-backend`, apply the schema to that database before the first deploy:
-
-   ```bash
-   $env:DATABASE_URL="postgresql://..."  # PowerShell
+   ```powershell
+   $env:DATABASE_URL="postgresql://..."
    uv run alembic upgrade head
    ```
 
-3. Deploy from the backend directory with `uv run fastapi deploy`. If deploying
-   through GitHub, set the FastAPI Cloud Application Directory to `DayFlow-backend`.
-4. In FastAPI Cloud, configure:
+3. Run `uv run fastapi deploy`, or connect GitHub and set the application
+   directory to `DayFlow-backend`.
+4. Add these FastAPI Cloud variables/secrets:
+
    - `APP_ENVIRONMENT=production`
    - `APP_DEBUG=false`
-   - `DATABASE_URL` as a secret
-   - `JWT_SECRET` as a secret (generate with `python -c "import secrets; print(secrets.token_hex(32))"`)
-   - `GROQ_API_KEY` as a secret
-   - `MEM0_API_KEY` as an optional secret for durable hosted memory
-   - `CORS_ORIGINS` as a JSON list if a browser frontend will call the API
-5. Set the mobile app's `EXPO_PUBLIC_API_URL` to the resulting
-   `https://<app>.fastapicloud.dev` URL and make a new app build.
+   - `DATABASE_URL`
+   - a random 32+ character `JWT_SECRET`
+   - `GROQ_API_KEY`
+   - `PUSH_NOTIFICATIONS_ENABLED=true`
+   - `QSTASH_CURRENT_SIGNING_KEY`
+   - `QSTASH_NEXT_SIGNING_KEY`
+   - optionally `EXPO_PUSH_ACCESS_TOKEN` if Expo enhanced push security is enabled
+   - optionally `MEM0_API_KEY` for hosted AI memory
 
-Production intentionally does not create tables during application startup.
-Run Alembic separately for each schema change so gradual deployments stay safe.
-Local sentence-transformer/Chroma memory is not installed in the cloud; use hosted
-mem0 for durable memory, or leave `MEM0_API_KEY` empty to run without memory.
+Production intentionally does not create tables on application startup. Run
+`uv run alembic upgrade head` for every schema deployment.
 
-## Tests & migrations
+## AI push reminder flow
 
-```bash
-uv run pytest                                   # runs against a throwaway SQLite db
-uv run alembic revision --autogenerate -m "..." # after model changes
+The mobile app registers its Expo push token at `POST /notifications/devices`
+and syncs timing/tone at `PUT /notifications/preferences`. FastAPI Cloud may scale
+to zero, so free Upstash QStash invokes the worker instead of an in-process timer.
+
+Create a QStash schedule:
+
+- Destination: `https://<app>.fastapicloud.dev/internal/notifications/process`
+- Method: `POST`
+- Cron: `* * * * *`
+- Body: `{}`
+
+The endpoint verifies the QStash signature, finds incomplete due tasks, asks
+Groq for a fresh short reminder, and hands it to Expo Push. There are no local
+task notification timers and no hard-coded message fallback. If AI generation
+fails, the attempt is recorded and retried rather than sending a template.
+
+### Reminder policy
+
+Each task escalates through at most three pushes, and stops the moment it is
+ticked off:
+
+| Stage | When | Kind |
+| --- | --- | --- |
+| Early nudge | `remind_before` minutes before the task | `task_reminder` |
+| At the start | the task's own time | `task_due` |
+| Still open | 30 minutes after the task | `task_overdue` |
+
+Separately, one `daily_summary` push per day recaps the day ahead at the user's
+chosen local time; it is skipped when the day holds no open task.
+
+Every stage is evaluated in the user's own timezone. A stage whose moment falls
+inside the user's quiet hours is skipped rather than deferred, so a do-not-disturb
+window never turns into a backlog that arrives at once. A stage also only fires
+within `NOTIFICATION_GRACE_MINUTES` of its moment, so a scheduler outage cannot
+deliver a burst of stale reminders on recovery. Each (task, device, stage) pair
+is reserved in `notification_deliveries` before sending, which is what makes a
+retried QStash call safe.
+
+## Verification
+
+```powershell
+uv run pytest
 uv run alembic upgrade head
 ```

@@ -7,6 +7,7 @@ import { Screen } from '../../src/components/Screen';
 import { SettingGroup, SettingRow } from '../../src/components/SettingRow';
 import { usePreferences } from '../../src/state/PreferencesContext';
 import { useTasks } from '../../src/state/TasksContext';
+import { unregisterPushNotifications } from '../../src/services/notifications';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { cardShadow, layout } from '../../src/theme/themes';
 
@@ -89,8 +90,9 @@ export default function SettingsIndex() {
             icon="log-out"
             title="Sign out"
             danger
-            onPress={() => {
-              api.signOut();
+            onPress={async () => {
+              await unregisterPushNotifications();
+              await api.signOut();
               clearTasks();
               router.replace('/(auth)/welcome');
             }}

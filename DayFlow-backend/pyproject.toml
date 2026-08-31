@@ -24,6 +24,9 @@ dependencies = [
     "langchain-groq>=0.2",
     "mem0ai>=0.1.30",
     "python-dotenv>=1.0",
+    "httpx>=0.28",
+    "qstash>=3.4",
+    "tzdata>=2025.2",
 ]
 
 [dependency-groups]

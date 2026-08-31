@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "551500897145",
+    "project_id": "dayflow-cb0c5",
+    "storage_bucket": "dayflow-cb0c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:551500897145:android:8039e83b27ccd389b36da8",
+        "android_client_info": {
+          "package_name": "com.alihassancodes.dayflow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUTzdTBDUy2KcFm8cuFjzm8w4FG4j0V3c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -10,6 +10,7 @@ import { requestNotificationPermission } from '../../src/services/notifications'
 import { NotificationTone } from '../../src/data/types';
 import { usePreferences } from '../../src/state/PreferencesContext';
 import { useTheme } from '../../src/theme/ThemeContext';
+import { formatTime } from '../../src/utils/format';
 import { cardShadow, layout } from '../../src/theme/themes';
 
 const TONES: { value: NotificationTone; label: string; hint: string }[] = [
@@ -17,6 +18,10 @@ const TONES: { value: NotificationTone; label: string; hint: string }[] = [
   { value: 'friendly', label: 'Friendly', hint: 'Warm, human reminders' },
   { value: 'minimal', label: 'Minimal', hint: 'Just the facts' },
 ];
+
+const SUMMARY_TIMES = ['06:00', '07:00', '08:00', '09:00'] as const;
+const QUIET_STARTS = ['20:00', '21:00', '22:00', '23:00'] as const;
+const QUIET_ENDS = ['06:00', '07:00', '08:00', '09:00'] as const;
 
 export default function Notifications() {
   const { theme } = useTheme();
@@ -101,17 +106,80 @@ export default function Notifications() {
               ))}
             </View>
 
-            <View style={styles.spacer} />
+            <AppText variant="micro" tone="tertiary" style={styles.sectionTitle}>
+              Daily summary
+            </AppText>
             <SettingGroup>
               <SettingRow
                 icon="sunrise"
                 title="Morning summary"
-                subtitle="A short briefing of your day at 8:00 AM"
+                subtitle="One AI recap of the day ahead"
                 switchValue={prefs.dailySummary}
                 onSwitch={(v) => setPref('dailySummary', v)}
                 last
               />
             </SettingGroup>
+            {prefs.dailySummary ? (
+              <View style={styles.tones}>
+                {SUMMARY_TIMES.map((t) => (
+                  <Chip
+                    key={t}
+                    label={formatTime(t)}
+                    selected={prefs.dailySummaryTime === t}
+                    onPress={() => setPref('dailySummaryTime', t)}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            <AppText variant="micro" tone="tertiary" style={styles.sectionTitle}>
+              Quiet hours
+            </AppText>
+            <SettingGroup>
+              <SettingRow
+                icon="moon"
+                title="Do not disturb"
+                subtitle="Reminders due in this window are skipped"
+                switchValue={prefs.quietHoursEnabled}
+                onSwitch={(v) => setPref('quietHoursEnabled', v)}
+                last
+              />
+            </SettingGroup>
+            {prefs.quietHoursEnabled ? (
+              <>
+                <AppText variant="caption" tone="tertiary" style={styles.rangeLabel}>
+                  From
+                </AppText>
+                <View style={styles.tones}>
+                  {QUIET_STARTS.map((t) => (
+                    <Chip
+                      key={t}
+                      label={formatTime(t)}
+                      selected={prefs.quietStart === t}
+                      onPress={() => setPref('quietStart', t)}
+                    />
+                  ))}
+                </View>
+                <AppText variant="caption" tone="tertiary" style={styles.rangeLabel}>
+                  Until
+                </AppText>
+                <View style={styles.tones}>
+                  {QUIET_ENDS.map((t) => (
+                    <Chip
+                      key={t}
+                      label={formatTime(t)}
+                      selected={prefs.quietEnd === t}
+                      onPress={() => setPref('quietEnd', t)}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
+
+            <AppText variant="caption" tone="tertiary" style={styles.deliveryNote}>
+              Example only. Every reminder is freshly written by AI on the backend — at
+              most three per task, and never once you have ticked it off.
+            </AppText>
           </>
         ) : null}
       </ScrollView>
@@ -122,6 +190,8 @@ export default function Notifications() {
 const styles = StyleSheet.create({
   scroll: { padding: layout.space.xl },
   groupTitle: { marginBottom: layout.space.sm, marginLeft: 2 },
+  sectionTitle: { marginTop: layout.space.xl, marginBottom: layout.space.sm, marginLeft: 2 },
+  rangeLabel: { marginTop: layout.space.md, marginBottom: layout.space.sm, marginLeft: 2 },
   previewCard: {
     borderRadius: layout.radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -134,4 +204,5 @@ const styles = StyleSheet.create({
   tones: { flexDirection: 'row', flexWrap: 'wrap', gap: layout.space.sm },
   toneHint: { marginTop: 10, marginLeft: 2, marginBottom: layout.space.xl },
   spacer: { height: layout.space.xl },
+  deliveryNote: { marginTop: layout.space.xl },
 });
