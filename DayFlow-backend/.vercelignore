@@ -1,0 +1,9 @@
+.venv/
+data/
+tests/
+alembic/
+.pytest_cache/
+.ruff_cache/
+.fastapicloudignore
+*.db
+.env

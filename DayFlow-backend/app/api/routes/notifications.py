@@ -71,7 +71,30 @@ async def update_preferences(
     await db.commit()
 
 
-def _verify_scheduler_request(body: str, signature: str | None, url: str,
+def _candidate_urls(request: Request) -> list[str]:
+    """The URLs QStash may have signed, most likely first.
+
+    A QStash signature covers the destination URL. Vercel terminates TLS at the
+    edge and forwards to the function over plain HTTP, so `request.url` can
+    carry the wrong scheme (and, behind a custom domain, the wrong host) — which
+    would reject every scheduler call. Rebuild the public URL from the forwarded
+    headers, and keep the raw one as a fallback for direct/local runs.
+    """
+    raw = request.url
+    public = raw
+    proto = request.headers.get("x-forwarded-proto")
+    if proto:
+        public = public.replace(scheme=proto.split(",")[0].strip())
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if host:
+        public = public.replace(netloc=host.split(",")[0].strip())
+    candidates = [str(public)]
+    if str(raw) != str(public):
+        candidates.append(str(raw))
+    return candidates
+
+
+def _verify_scheduler_request(body: str, signature: str | None, urls: list[str],
                               scheduler_secret: str | None) -> None:
     settings = get_settings()
     if settings.internal_scheduler_secret and scheduler_secret and secrets.compare_digest(
@@ -80,13 +103,19 @@ def _verify_scheduler_request(body: str, signature: str | None, url: str,
         return
     if not signature or not settings.qstash_current_signing_key or not settings.qstash_next_signing_key:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid scheduler credentials")
-    try:
-        Receiver(
-            current_signing_key=settings.qstash_current_signing_key,
-            next_signing_key=settings.qstash_next_signing_key,
-        ).verify(signature=signature, body=body, url=url)
-    except Exception as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid QStash signature") from exc
+    receiver = Receiver(
+        current_signing_key=settings.qstash_current_signing_key,
+        next_signing_key=settings.qstash_next_signing_key,
+    )
+    # Every candidate must still carry a valid QStash signature, so trying more
+    # than one only tolerates proxy rewriting — it does not weaken the check.
+    for url in urls:
+        try:
+            receiver.verify(signature=signature, body=body, url=url)
+            return
+        except Exception:
+            continue
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid QStash signature")
 
 
 @internal_router.post("/process")
@@ -97,6 +126,6 @@ async def process_notifications(
     x_scheduler_secret: str | None = Header(default=None),
 ) -> dict[str, int | bool]:
     body = (await request.body()).decode("utf-8")
-    _verify_scheduler_request(body, upstash_signature, str(request.url), x_scheduler_secret)
+    _verify_scheduler_request(body, upstash_signature, _candidate_urls(request), x_scheduler_secret)
     result = await process_due_notifications(db)
     return {"enabled": get_settings().push_notifications_enabled, **result}

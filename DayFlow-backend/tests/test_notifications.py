@@ -253,3 +253,58 @@ async def test_daily_summary_stays_quiet_with_no_tasks(client, auth_headers, db,
     await notification_service.process_due_notifications(db, now=summary_at)
 
     assert push_spy == []
+
+
+@pytest.mark.asyncio
+async def test_qstash_signature_survives_the_vercel_proxy(client, monkeypatch):
+    """Vercel forwards to the function over http, so the signed https URL must
+    still be reconstructed from the forwarded headers."""
+    import base64
+    import hashlib
+    import hmac
+    import json
+    import time
+
+    key = "sig-test-current-key"
+    settings = get_settings()
+    monkeypatch.setattr(settings, "qstash_current_signing_key", key)
+    monkeypatch.setattr(settings, "qstash_next_signing_key", "sig-test-next-key")
+    monkeypatch.setattr(settings, "internal_scheduler_secret", "")
+
+    body = "{}"
+    signed_url = "https://dayflow.vercel.app/internal/notifications/process"
+
+    def b64(raw: bytes) -> str:
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    now = int(time.time())
+    header = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    claims = b64(
+        json.dumps(
+            {
+                "iss": "Upstash",
+                "sub": signed_url,
+                "exp": now + 300,
+                "nbf": now - 5,
+                "iat": now,
+                "jti": "test-jti",
+                "body": b64(hashlib.sha256(body.encode()).digest()),
+            }
+        ).encode()
+    )
+    signing_input = f"{header}.{claims}".encode()
+    signature = b64(hmac.new(key.encode(), signing_input, hashlib.sha256).digest())
+    token = f"{header}.{claims}.{signature}"
+
+    response = await client.post(
+        "/internal/notifications/process",
+        content=body,
+        headers={
+            "Content-Type": "application/json",
+            "Upstash-Signature": token,
+            # What Vercel's edge actually adds in front of the function.
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "dayflow.vercel.app",
+        },
+    )
+    assert response.status_code == 200, response.text

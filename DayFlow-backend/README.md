@@ -15,23 +15,32 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 API documentation is available at `http://localhost:8000/docs`.
 
-## Deploy to FastAPI Cloud
+## Deploy to Vercel
 
-1. Create a Neon Postgres database and copy its connection URL.
-2. Apply migrations from this directory:
+Vercel serves the app as a single Python Function. It auto-detects the FastAPI
+`app` in `app/main.py`; `pyproject.toml` names that entrypoint explicitly under
+`[tool.vercel]`, and `vercel.json` raises `maxDuration` so the notification
+worker has room to finish.
+
+1. Create a Neon Postgres database. **Copy the pooled connection string** — the
+   host containing `-pooler`. Serverless functions open connections from many
+   short-lived instances, so the app uses `NullPool` and lets Neon's pooler do
+   the pooling.
+2. Apply migrations from this directory (never from Vercel — the function
+   filesystem is read-only and migrations should be a deliberate step):
 
    ```powershell
-   $env:DATABASE_URL="postgresql://..."
+   $env:DATABASE_URL="postgresql://...-pooler..."
    uv run alembic upgrade head
    ```
 
-3. Run `uv run fastapi deploy`, or connect GitHub and set the application
-   directory to `DayFlow-backend`.
-4. Add these FastAPI Cloud variables/secrets:
+3. Deploy with `vercel deploy` from this directory, or import the repository in
+   the dashboard and set the **Root Directory** to `DayFlow-backend`.
+4. Add these Environment Variables in the Vercel project:
 
    - `APP_ENVIRONMENT=production`
    - `APP_DEBUG=false`
-   - `DATABASE_URL`
+   - `DATABASE_URL` — the Neon **pooled** URL
    - a random 32+ character `JWT_SECRET`
    - `GROQ_API_KEY`
    - `PUSH_NOTIFICATIONS_ENABLED=true`
@@ -40,18 +49,42 @@ API documentation is available at `http://localhost:8000/docs`.
    - optionally `EXPO_PUSH_ACCESS_TOKEN` if Expo enhanced push security is enabled
    - optionally `MEM0_API_KEY` for hosted AI memory
 
+   `APP_ENVIRONMENT=production` matters: without it the settings fall back to a
+   local SQLite file, which cannot work on a read-only serverless filesystem.
+
+5. Confirm the deploy with `GET /health`. It reports the environment and whether
+   the app resolved a Postgres or SQLite database:
+
+   ```json
+   { "status": "ok", "environment": "production", "database": "postgres" }
+   ```
+
+Then point the frontend at the deployment by setting `EXPO_PUBLIC_API_URL` to
+the Vercel URL before building the app.
+
 Production intentionally does not create tables on application startup. Run
 `uv run alembic upgrade head` for every schema deployment.
+
+### Notes on the serverless runtime
+
+- **No in-process scheduler.** The function only runs while serving a request,
+  so reminders are driven by QStash calling the worker endpoint (below).
+- **Local AI memory is unavailable.** mem0's local mode needs to write a vector
+  store to disk; on Vercel it degrades to memory-off. Use `MEM0_API_KEY` for the
+  hosted service if you want memory in production.
+- `.vercelignore` keeps tests, the local `data/` directory, and `.env` out of the
+  bundle. Secrets come from Vercel Environment Variables, never from a file.
 
 ## AI push reminder flow
 
 The mobile app registers its Expo push token at `POST /notifications/devices`
-and syncs timing/tone at `PUT /notifications/preferences`. FastAPI Cloud may scale
-to zero, so free Upstash QStash invokes the worker instead of an in-process timer.
+and syncs timing/tone at `PUT /notifications/preferences`. A serverless function
+only runs while handling a request, so free Upstash QStash invokes the worker
+on a schedule instead of an in-process timer.
 
 Create a QStash schedule:
 
-- Destination: `https://<app>.fastapicloud.dev/internal/notifications/process`
+- Destination: `https://<your-project>.vercel.app/internal/notifications/process`
 - Method: `POST`
 - Cron: `* * * * *`
 - Body: `{}`
@@ -60,6 +93,11 @@ The endpoint verifies the QStash signature, finds incomplete due tasks, asks
 Groq for a fresh short reminder, and hands it to Expo Push. There are no local
 task notification timers and no hard-coded message fallback. If AI generation
 fails, the attempt is recorded and retried rather than sending a template.
+
+A QStash signature covers the destination URL, and Vercel's edge terminates TLS
+and forwards to the function over plain HTTP. The endpoint therefore rebuilds the
+public URL from `X-Forwarded-Proto`/`X-Forwarded-Host` before verifying, so the
+signature still matches behind the proxy.
 
 ### Reminder policy
 

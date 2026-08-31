@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -14,12 +15,18 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    if settings.app_environment != "production":
-        # Local artifacts (SQLite fallback, mem0 store) live under ./data.
-        Path("data").mkdir(exist_ok=True)
-        # Convenience for development and tests. Production uses Alembic.
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+    # Bootstrap the schema only for the local SQLite fallback. Postgres — the
+    # only thing a deployment should point at — is migrated with Alembic.
+    # A serverless filesystem is read-only apart from /tmp, so a misconfigured
+    # deploy must not take the whole app down on a mkdir.
+    if settings.app_environment != "production" and settings.database_url.startswith("sqlite"):
+        try:
+            # Local artifacts (SQLite fallback, mem0 store) live under ./data.
+            Path("data").mkdir(exist_ok=True)
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+        except OSError:
+            logging.getLogger(__name__).exception("Could not prepare the local SQLite database")
     yield
     await engine.dispose()
 
@@ -43,4 +50,12 @@ app.include_router(notifications.internal_router)
 
 @app.get("/health", tags=["meta"])
 async def health() -> dict:
-    return {"status": "ok", "app": settings.app_name}
+    """Also reports the shape of the deployment, so a misconfigured deploy —
+    one still falling back to SQLite, say — is obvious without reading logs."""
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "environment": settings.app_environment,
+        "database": "sqlite" if settings.database_url.startswith("sqlite") else "postgres",
+        "push_notifications": settings.push_notifications_enabled,
+    }
