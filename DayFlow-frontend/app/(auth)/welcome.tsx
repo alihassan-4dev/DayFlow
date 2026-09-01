@@ -1,14 +1,16 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import { AIOrb } from '../../src/components/ai/AIOrb';
+import { Animated, Image, StyleSheet, View } from 'react-native';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
+import { useTheme } from '../../src/theme/ThemeContext';
 import { layout } from '../../src/theme/themes';
 
 export default function Welcome() {
   const router = useRouter();
+  const { theme } = useTheme();
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(12)).current;
 
@@ -23,7 +25,23 @@ export default function Welcome() {
     <Screen safeBottom>
       <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: rise }] }]}>
         <View style={styles.hero}>
-          <AIOrb state="idle" size={92} />
+          <LinearGradient
+            colors={[theme.colors.accentSoft, theme.colors.surface]}
+            style={[styles.logoHalo, { borderColor: theme.colors.border }]}
+          >
+            <Image
+              source={require('../../assets/dayflow-brand-mark.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="DayFlow"
+            />
+          </LinearGradient>
+          <View style={[styles.brandPill, { backgroundColor: theme.colors.accentSoft }]}>
+            <View style={[styles.brandDot, { backgroundColor: theme.colors.accent }]} />
+            <AppText variant="micro" style={{ color: theme.colors.accent }}>
+              DayFlow
+            </AppText>
+          </View>
           <AppText variant="display" align="center" style={styles.title}>
             A calmer way{'\n'}through your day
           </AppText>
@@ -49,7 +67,30 @@ export default function Welcome() {
 const styles = StyleSheet.create({
   content: { flex: 1, justifyContent: 'space-between' },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { marginTop: layout.space.xl },
+  logoHalo: {
+    width: 132,
+    height: 132,
+    borderRadius: 42,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#6576F3',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
+  },
+  logo: { width: 112, height: 112 },
+  brandPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: layout.radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginTop: layout.space.xl,
+  },
+  brandDot: { width: 6, height: 6, borderRadius: 3, marginRight: 7 },
+  title: { marginTop: layout.space.lg },
   tagline: { marginTop: layout.space.md },
   actions: { paddingBottom: layout.space.md },
   secondary: { marginTop: 6 },

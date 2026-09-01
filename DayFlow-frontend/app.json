@@ -6,22 +6,26 @@
     "scheme": "dayflow",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "backgroundColor": "#16172B",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#16172B"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alihassancodes.dayflow",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.alihassancodes.dayflow",
+      "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#16172B"
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
@@ -35,7 +39,27 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#53BFD3",
+          "defaultChannel": "task-reminders"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#16172B",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0D0E1C",
+            "image": "./assets/splash-icon.png"
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {},
