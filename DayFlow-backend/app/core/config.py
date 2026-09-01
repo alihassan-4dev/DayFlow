@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     qstash_next_signing_key: str = ""
     internal_scheduler_secret: str = ""
     notification_grace_minutes: int = 30
+    notification_batch_size: int = 20
 
     cors_origins: list[str] = ["*"]
 

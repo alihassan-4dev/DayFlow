@@ -32,8 +32,9 @@ async def register_device(
         )
         db.add(device)
     else:
-        if device.active and device.user_id != user.id:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Device is registered to another account")
+        # A physical Expo token belongs to the device, not permanently to an
+        # account. Reassign it so a failed sign-out cannot leave pushes tied to
+        # the previous account when somebody signs in on the same phone.
         device.user_id = user.id
         device.platform = payload.platform
         device.active = True

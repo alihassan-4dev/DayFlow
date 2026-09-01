@@ -274,7 +274,7 @@ async def _reserve_delivery(
             NotificationDelivery.push_token_id == token.id,
             NotificationDelivery.kind == kind,
             NotificationDelivery.scheduled_for == scheduled_for,
-        )
+        ).with_for_update(skip_locked=True)
     )
     if delivery is not None:
         retryable = delivery.status == "failed" and delivery.attempts < 3
@@ -376,26 +376,35 @@ async def _process_task_reminders(db: AsyncSession, now: datetime) -> dict[str, 
             Task.due_date >= now.date() - timedelta(days=2),
             Task.due_date <= now.date() + timedelta(days=2),
         )
+        .order_by(Task.due_date, Task.time, Task.id)
+        .limit(settings.notification_batch_size)
     )
     checked = sent = failed = 0
     for task, user in rows.all():
         checked += 1
-        for kind, scheduled_for in _stage_times(task, user):
-            if not _is_due_now(scheduled_for, now, settings.notification_grace_minutes):
-                continue
-            if _in_quiet_hours(user, scheduled_for):
-                continue
-            reservations = await _reserve_all(db, user, kind, scheduled_for, now, task=task)
-            if not reservations:
-                continue
-            try:
-                message = await generate_reminder_message(task, user, kind)
-            except ReminderGenerationError as exc:
-                failed += await _fail(db, reservations, str(exc))
-                continue
-            stage_sent, stage_failed = await _deliver(db, reservations, message, task.id, kind)
-            sent += stage_sent
-            failed += stage_failed
+        due_stages = [
+            (kind, scheduled_for)
+            for kind, scheduled_for in _stage_times(task, user)
+            if _is_due_now(scheduled_for, now, settings.notification_grace_minutes)
+        ]
+        if not due_stages or _in_quiet_hours(user, now):
+            continue
+
+        # A delayed scheduler invocation can overlap several stage grace
+        # windows. Deliver only the latest relevant stage so one task never
+        # creates a burst of pushes.
+        kind, scheduled_for = max(due_stages, key=lambda stage: stage[1])
+        reservations = await _reserve_all(db, user, kind, scheduled_for, now, task=task)
+        if not reservations:
+            continue
+        try:
+            message = await generate_reminder_message(task, user, kind)
+        except ReminderGenerationError as exc:
+            failed += await _fail(db, reservations, str(exc))
+            continue
+        stage_sent, stage_failed = await _deliver(db, reservations, message, task.id, kind)
+        sent += stage_sent
+        failed += stage_failed
     return {"tasks_checked": checked, "notifications_sent": sent, "notifications_failed": failed}
 
 
@@ -405,7 +414,7 @@ async def _process_daily_summaries(db: AsyncSession, now: datetime) -> dict[str,
         select(User).where(
             User.notifications_enabled.is_(True),
             User.daily_summary_enabled.is_(True),
-        )
+        ).order_by(User.id).limit(settings.notification_batch_size)
     ))
     sent = failed = 0
     for user in users:
@@ -421,7 +430,7 @@ async def _process_daily_summaries(db: AsyncSession, now: datetime) -> dict[str,
             continue
         if not _is_due_now(scheduled_for, now, settings.notification_grace_minutes):
             continue
-        if _in_quiet_hours(user, scheduled_for):
+        if _in_quiet_hours(user, now):
             continue
         tasks = list(await db.scalars(
             select(Task)

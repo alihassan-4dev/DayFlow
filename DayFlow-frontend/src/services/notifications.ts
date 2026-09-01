@@ -98,7 +98,13 @@ export async function syncPushPreferences(prefs: Preferences): Promise<boolean> 
 export async function unregisterPushNotifications(): Promise<void> {
   const token = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
   if (token && (await api.hasSession())) {
-    await api.unregisterPushDevice(token).catch(() => {});
+    try {
+      await api.unregisterPushDevice(token);
+    } catch {
+      // Keep the token locally so the next authenticated registration can
+      // safely reassign it instead of losing track of an active device.
+      return;
+    }
   }
   await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
 }

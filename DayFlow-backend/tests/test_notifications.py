@@ -215,9 +215,9 @@ async def test_quiet_hours_allow_a_push_outside_the_window(client, auth_headers,
 
     await notification_service.process_due_notifications(db, now=due)
 
-    # Both the early nudge and the start fire: the 10-minute-earlier stage is
-    # still inside the grace window at this point.
-    assert [push["kind"] for push in push_spy] == ["task_reminder", "task_due"]
+    # At the due time the delayed early stage overlaps the grace window, but
+    # only the latest stage may be delivered to avoid a push burst.
+    assert [push["kind"] for push in push_spy] == ["task_due"]
 
 
 @pytest.mark.asyncio
