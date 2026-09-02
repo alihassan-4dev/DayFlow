@@ -35,6 +35,7 @@ wheels/
 
 # Scaffolding leftovers
 .expo-export-check/
+/DayFlow-frontend/dist-validation/
 
 # OS / editor noise
 .DS_Store
