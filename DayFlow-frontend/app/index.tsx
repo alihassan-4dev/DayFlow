@@ -24,6 +24,7 @@ export default function Index() {
       try {
         const user = await api.me();
         if (user.name) setPref('name', user.name);
+        if (user.email) setPref('email', user.email);
         setTarget('/(main)/tasks');
       } catch (e) {
         // Invalid/expired token → sign in again. Network trouble → let the

@@ -1,7 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useCallback, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -10,7 +12,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { api } from '../../src/api/client';
 import { AIOrb } from '../../src/components/ai/AIOrb';
 import { ChatBubble } from '../../src/components/ai/ChatBubble';
 import { TypingDots } from '../../src/components/ai/TypingDots';
@@ -19,7 +20,8 @@ import { Chip } from '../../src/components/Chip';
 import { Screen } from '../../src/components/Screen';
 import { aiSuggestionChips } from '../../src/data/content';
 import { AIState, ChatMessage } from '../../src/data/types';
-import { useTasks } from '../../src/state/TasksContext';
+import { useChat } from '../../src/state/ChatContext';
+import { usePreferences } from '../../src/state/PreferencesContext';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { layout, type } from '../../src/theme/themes';
 
@@ -32,59 +34,45 @@ const STATE_LABEL: Record<AIState, string> = {
 
 export default function AIScreen() {
   const { theme } = useTheme();
-  const { refresh } = useTasks();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [aiState, setAIState] = useState<AIState>('idle');
+  const { prefs } = usePreferences();
+  const { messages, busy, send, clear } = useChat();
+  const router = useRouter();
   const [input, setInput] = useState('');
+  const [justReplied, setJustReplied] = useState(false);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+
+  const aiState: AIState = busy ? 'processing' : justReplied ? 'responding' : 'idle';
 
   const scrollToEnd = () =>
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
 
-  const send = useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed || aiState === 'processing') return;
+  useEffect(() => {
+    if (messages.length) scrollToEnd();
+  }, [messages.length]);
 
+  const submit = useCallback(
+    async (text: string) => {
+      if (!text.trim() || busy) return;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       setInput('');
-      setMessages((prev) => [...prev, { id: `m${Date.now()}`, role: 'user', text: trimmed }]);
-      setAIState('processing');
-      scrollToEnd();
-
-      const finish = (reply: Omit<ChatMessage, 'id' | 'role'>) => {
-        setAIState('responding');
-        setMessages((prev) => [...prev, { id: `m${Date.now()}a`, role: 'ai', ...reply }]);
-        scrollToEnd();
-        setTimeout(() => setAIState('idle'), 1200);
-      };
-
-      const history = messages.slice(-10).map((m) => ({ role: m.role, text: m.text }));
-      api
-        .chat(trimmed, history)
-        .then((res) => {
-          finish({ text: res.reply, action: res.action ?? undefined });
-          if (res.tasks_changed) refresh();
-        })
-        .catch(() => {
-          finish({
-            text: 'I can’t reach DayFlow right now. Check your connection and try again in a moment.',
-          });
-        });
+      const reply = await send(text);
+      if (reply) {
+        setJustReplied(true);
+        setTimeout(() => setJustReplied(false), 1200);
+      }
     },
-    [aiState, messages, refresh]
+    [busy, send]
   );
 
-  const toggleListening = () => {
-    if (aiState === 'processing') return;
+  const confirmClear = () =>
+    Alert.alert('Clear conversation?', 'Your tasks stay exactly as they are.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Clear', style: 'destructive', onPress: clear },
+    ]);
+
+  const openVoice = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    if (aiState === 'listening') {
-      // Mock: pretend we heard something.
-      setAIState('idle');
-      send('What’s left on my list today?');
-    } else {
-      setAIState('listening');
-    }
+    router.push('/voice');
   };
 
   const hasChat = messages.length > 0;
@@ -106,21 +94,37 @@ export default function AIScreen() {
             },
           ]}
         >
-          <AppText variant="title">Assistant</AppText>
-          <View style={styles.statusRow}>
-            <View
-              style={[
-                styles.statusDot,
-                {
-                  backgroundColor:
-                    aiState === 'idle' ? theme.colors.textTertiary : theme.colors.aiA,
-                },
-              ]}
-            />
-            <AppText variant="caption" tone="tertiary">
-              {STATE_LABEL[aiState]}
-            </AppText>
+          <View>
+            <AppText variant="title">Assistant</AppText>
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor:
+                      aiState === 'idle' ? theme.colors.textTertiary : theme.colors.aiA,
+                  },
+                ]}
+              />
+              <AppText variant="caption" tone="tertiary">
+                {STATE_LABEL[aiState]}
+              </AppText>
+            </View>
           </View>
+          {hasChat ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear conversation"
+              onPress={confirmClear}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.headerBtn,
+                { backgroundColor: theme.colors.surfaceElevated, opacity: pressed ? 0.6 : 1 },
+              ]}
+            >
+              <Feather name="trash-2" size={16} color={theme.colors.textSecondary} />
+            </Pressable>
+          ) : null}
         </View>
 
         {hasChat ? (
@@ -134,8 +138,9 @@ export default function AIScreen() {
             automaticallyAdjustKeyboardInsets
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             keyboardShouldPersistTaps="handled"
+            onContentSizeChange={scrollToEnd}
             ListFooterComponent={
-              aiState === 'processing' ? (
+              busy ? (
                 <View style={styles.typingWrap}>
                   <TypingDots />
                 </View>
@@ -146,16 +151,36 @@ export default function AIScreen() {
           <View style={styles.hero}>
             <AIOrb state={aiState} size={110} />
             <AppText variant="title" align="center" style={styles.heroTitle}>
-              {aiState === 'listening' ? 'I’m listening' : 'What’s on your mind?'}
+              What’s on your mind{prefs.name && prefs.name !== 'there' ? `, ${prefs.name}` : ''}?
             </AppText>
             <AppText variant="caption" tone="tertiary" align="center" style={styles.heroSub}>
               Create tasks, move things around,{'\n'}or just ask what’s left.
             </AppText>
             <View style={styles.chips}>
               {aiSuggestionChips.map((chip) => (
-                <Chip key={chip} label={chip} onPress={() => send(chip)} />
+                <Chip key={chip} label={chip} onPress={() => void submit(chip)} />
               ))}
             </View>
+            {prefs.voiceEnabled ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Start voice mode"
+                onPress={openVoice}
+                style={({ pressed }) => [
+                  styles.voiceCta,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+              >
+                <Feather name="mic" size={14} color={theme.colors.aiA} />
+                <AppText variant="captionMedium" tone="secondary">
+                  Or just talk — try voice mode
+                </AppText>
+              </Pressable>
+            ) : null}
           </View>
         )}
 
@@ -173,43 +198,40 @@ export default function AIScreen() {
               placeholder="Ask anything…"
               placeholderTextColor={theme.colors.textTertiary}
               style={[styles.input, type.body, { color: theme.colors.text }]}
-              onSubmitEditing={() => send(input)}
+              onSubmitEditing={() => void submit(input)}
               returnKeyType="send"
               selectionColor={theme.colors.accent}
               cursorColor={theme.colors.accent}
               maxLength={4000}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={aiState === 'listening' ? 'Stop listening' : 'Speak to AI'}
-              onPress={toggleListening}
-              hitSlop={6}
-              style={styles.micBtn}
-            >
-              <Feather
-                name={aiState === 'listening' ? 'square' : 'mic'}
-                size={17}
-                color={aiState === 'listening' ? theme.colors.aiA : theme.colors.textSecondary}
-              />
-            </Pressable>
+            {prefs.voiceEnabled ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Voice mode"
+                onPress={openVoice}
+                hitSlop={6}
+                style={styles.micBtn}
+              >
+                <Feather name="mic" size={17} color={theme.colors.textSecondary} />
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Send message"
-              onPress={() => send(input)}
-              disabled={!input.trim()}
+              onPress={() => void submit(input)}
+              disabled={!input.trim() || busy}
               style={[
                 styles.sendBtn,
                 {
-                  backgroundColor: input.trim()
-                    ? theme.colors.primary
-                    : theme.colors.surfaceElevated,
+                  backgroundColor:
+                    input.trim() && !busy ? theme.colors.primary : theme.colors.surfaceElevated,
                 },
               ]}
             >
               <Feather
                 name="arrow-up"
                 size={16}
-                color={input.trim() ? theme.colors.onPrimary : theme.colors.textTertiary}
+                color={input.trim() && !busy ? theme.colors.onPrimary : theme.colors.textTertiary}
               />
             </Pressable>
           </View>
@@ -229,7 +251,14 @@ const styles = StyleSheet.create({
     paddingTop: layout.space.lg,
     paddingBottom: 14,
   },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   chatList: {
     paddingHorizontal: layout.space.xl,
@@ -251,6 +280,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: layout.space.sm,
     marginTop: layout.space.xxl,
+  },
+  voiceCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: layout.space.xl,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: layout.radius.full,
+    borderWidth: 1,
   },
   composer: {
     paddingHorizontal: layout.space.lg,

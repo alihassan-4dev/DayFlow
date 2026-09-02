@@ -1,10 +1,12 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { AppText } from '../../src/components/AppText';
+import { DayFlowMark } from '../../src/components/brand/DayFlowMark';
 import { Button } from '../../src/components/Button';
 import { Screen } from '../../src/components/Screen';
+import { brand } from '../../src/theme/brand';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { layout } from '../../src/theme/themes';
 
@@ -13,28 +15,27 @@ export default function Welcome() {
   const { theme } = useTheme();
   const fade = useRef(new Animated.Value(0)).current;
   const rise = useRef(new Animated.Value(12)).current;
+  const draw = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fade, { toValue: 1, duration: 800, useNativeDriver: true }),
       Animated.timing(rise, { toValue: 0, duration: 800, useNativeDriver: true }),
+      Animated.timing(draw, { toValue: 1, duration: 1100, delay: 150, useNativeDriver: false }),
     ]).start();
-  }, [fade, rise]);
+  }, [fade, rise, draw]);
 
   return (
     <Screen safeBottom>
       <Animated.View style={[styles.content, { opacity: fade, transform: [{ translateY: rise }] }]}>
         <View style={styles.hero}>
           <LinearGradient
-            colors={[theme.colors.accentSoft, theme.colors.surface]}
+            colors={theme.dark ? [...brand.splash] : [theme.colors.accentSoft, theme.colors.surface]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={[styles.logoHalo, { borderColor: theme.colors.border }]}
           >
-            <Image
-              source={require('../../assets/dayflow-brand-mark.png')}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityLabel="DayFlow"
-            />
+            <DayFlowMark size={104} light={!theme.dark} progress={draw} />
           </LinearGradient>
           <View style={[styles.brandPill, { backgroundColor: theme.colors.accentSoft }]}>
             <View style={[styles.brandDot, { backgroundColor: theme.colors.accent }]} />
@@ -46,7 +47,7 @@ export default function Welcome() {
             A calmer way{'\n'}through your day
           </AppText>
           <AppText variant="body" tone="secondary" align="center" style={styles.tagline}>
-            Tell DayFlow what needs doing.{'\n'}It quietly takes care of the rest.
+            Tell DayFlow what needs doing — or just say it.{'\n'}It quietly takes care of the rest.
           </AppText>
         </View>
 
@@ -80,7 +81,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 5,
   },
-  logo: { width: 112, height: 112 },
   brandPill: {
     flexDirection: 'row',
     alignItems: 'center',

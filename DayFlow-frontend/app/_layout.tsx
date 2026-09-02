@@ -9,17 +9,18 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { PreferencesProvider } from '../src/state/PreferencesContext';
+import { AnimatedSplash } from '../src/components/AnimatedSplash';
 import { onNotificationOpened, syncPushPreferences } from '../src/services/notifications';
-import { usePreferences } from '../src/state/PreferencesContext';
+import { ChatProvider } from '../src/state/ChatContext';
+import { PreferencesProvider, usePreferences } from '../src/state/PreferencesContext';
 import { TasksProvider } from '../src/state/TasksContext';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-function RootNavigator() {
+function RootNavigator({ splashActive }: { splashActive: boolean }) {
   const { theme } = useTheme();
   const { prefs, ready } = usePreferences();
   const router = useRouter();
@@ -42,7 +43,7 @@ function RootNavigator() {
 
   return (
     <>
-      <StatusBar style={theme.dark ? 'light' : 'dark'} />
+      <StatusBar style={splashActive || theme.dark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -58,6 +59,10 @@ function RootNavigator() {
           name="task-editor"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        <Stack.Screen
+          name="voice"
+          options={{ presentation: 'fullScreenModal', animation: 'fade', gestureEnabled: false }}
+        />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </>
@@ -72,6 +77,8 @@ export default function RootLayout() {
     Inter_700Bold,
     Fraunces_600SemiBold,
   });
+  const [splashDone, setSplashDone] = useState(false);
+  const finishSplash = useCallback(() => setSplashDone(true), []);
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
@@ -84,7 +91,10 @@ export default function RootLayout() {
       <ThemeProvider>
         <PreferencesProvider>
           <TasksProvider>
-            <RootNavigator />
+            <ChatProvider>
+              <RootNavigator splashActive={!splashDone} />
+              {!splashDone ? <AnimatedSplash onDone={finishSplash} /> : null}
+            </ChatProvider>
           </TasksProvider>
         </PreferencesProvider>
       </ThemeProvider>

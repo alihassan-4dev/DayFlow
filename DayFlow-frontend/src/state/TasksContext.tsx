@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { LayoutAnimation, Platform, UIManager } from 'react-native';
-import { api } from '../api/client';
+import { api, dateToDayLabel, dayLabelToDate, isoToday } from '../api/client';
 import { Task } from '../data/types';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -16,6 +16,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 interface TasksContextValue {
   tasks: Task[];
+  /** Due today, plus anything overdue that's still open */
   todayTasks: Task[];
   upcomingTasks: Task[];
   /** 0..1 completion for today */
@@ -24,10 +25,12 @@ interface TasksContextValue {
   loading: boolean;
   /** Last sync with the backend failed */
   offline: boolean;
-  addTask: (task: Omit<Task, 'id' | 'completed'>) => void;
+  addTask: (task: Omit<Task, 'id' | 'completed' | 'dueDate'> & { dueDate?: string }) => void;
   updateTask: (id: string, patch: Partial<Task>) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  /** Push an open task to tomorrow (same time). */
+  snoozeToTomorrow: (id: string) => void;
   /** Re-fetch from the backend (e.g. after the AI changed tasks). */
   refresh: () => Promise<void>;
   /** Drop local task state on sign-out. */
@@ -38,6 +41,9 @@ const TasksContext = createContext<TasksContextValue | null>(null);
 
 const animate = () =>
   LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
+
+const byDateTime = (a: Task, b: Task) =>
+  a.dueDate.localeCompare(b.dueDate) || a.time.localeCompare(b.time);
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -64,15 +70,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const addTask = useCallback((task: Omit<Task, 'id' | 'completed'>) => {
+  const addTask = useCallback<TasksContextValue['addTask']>((input) => {
+    const dueDate = input.dueDate ?? dayLabelToDate(input.day);
+    const task = { ...input, dueDate, day: dateToDayLabel(dueDate) };
     // Optimistic insert; replaced by the server row when it lands.
     const localId = `local-${Date.now()}`;
     animate();
-    setTasks((prev) =>
-      [...prev, { ...task, id: localId, completed: false }].sort((a, b) =>
-        a.time.localeCompare(b.time)
-      )
-    );
+    setTasks((prev) => [...prev, { ...task, id: localId, completed: false }].sort(byDateTime));
     api
       .createTask(task)
       .then((created) => {
@@ -88,12 +92,15 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     const current = tasks.find((task) => task.id === id);
     if (!current) return;
-    const optimistic = { ...current, ...patch };
+    const next = { ...patch };
+    if (next.dueDate !== undefined) next.day = dateToDayLabel(next.dueDate);
+    else if (next.day !== undefined) next.dueDate = dayLabelToDate(next.day);
+    const optimistic = { ...current, ...next };
     animate();
     setTasks((prev) => prev.map((task) => (task.id === id ? optimistic : task)));
     if (!id.startsWith('local-')) {
       api
-        .updateTask(id, patch)
+        .updateTask(id, next)
         .then((updated) => {
           setTasks((prev) => prev.map((t) => (t.id === id ? updated : t)));
           setOffline(false);
@@ -135,6 +142,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refresh]);
 
+  const snoozeToTomorrow = useCallback(
+    (id: string) => updateTask(id, { dueDate: isoToday(1) }),
+    [updateTask]
+  );
+
   const clear = useCallback(() => {
     setTasks([]);
     setLoading(true);
@@ -142,10 +154,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(() => {
+    const today = isoToday();
     const todayTasks = tasks
-      .filter((t) => t.day === 'today')
-      .sort((a, b) => a.time.localeCompare(b.time));
-    const upcomingTasks = tasks.filter((t) => t.day !== 'today');
+      .filter((t) => t.dueDate === today || (t.dueDate < today && !t.completed))
+      .sort(byDateTime);
+    const upcomingTasks = tasks.filter((t) => t.dueDate > today).sort(byDateTime);
     const done = todayTasks.filter((t) => t.completed).length;
     return {
       tasks,
@@ -158,10 +171,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       updateTask,
       toggleTask,
       deleteTask,
+      snoozeToTomorrow,
       refresh,
       clear,
     };
-  }, [tasks, loading, offline, addTask, updateTask, toggleTask, deleteTask, refresh, clear]);
+  }, [tasks, loading, offline, addTask, updateTask, toggleTask, deleteTask, snoozeToTomorrow, refresh, clear]);
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
 }

@@ -27,6 +27,9 @@ dependencies = [
     "httpx>=0.28",
     "qstash>=3.4",
     "tzdata>=2025.2",
+    "edge-tts>=7.2.8",
+    "groq>=0.37.1",
+    "python-multipart>=0.0.32",
 ]
 
 [dependency-groups]

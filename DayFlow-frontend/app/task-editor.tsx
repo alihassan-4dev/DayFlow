@@ -1,7 +1,9 @@
-﻿import { Feather } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { dateToDayLabel, isoToday, toIsoDate } from '../src/api/client';
 import { AppText } from '../src/components/AppText';
 import { Button } from '../src/components/Button';
 import { Chip } from '../src/components/Chip';
@@ -15,24 +17,20 @@ import { layout } from '../src/theme/themes';
 import { formatTime, priorityMeta } from '../src/utils/format';
 
 const TIME_SLOTS = ['07:00', '09:00', '12:00', '15:00', '18:00', '20:00'];
-function upcomingDayLabel(daysAhead: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + daysAhead);
-  return date.toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+const DAY_OFFSETS = [0, 1, 2, 3, 4];
+const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
+
+function parseIso(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0);
 }
 
-const DAYS: ('today' | string)[] = [
-  'today',
-  'Tomorrow',
-  upcomingDayLabel(2),
-  upcomingDayLabel(3),
-  upcomingDayLabel(4),
-];
-const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
+function parseTime(time: string): Date {
+  const [h, m] = time.split(':').map(Number);
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d;
+}
 
 export default function TaskEditor() {
   const { theme } = useTheme();
@@ -46,18 +44,43 @@ export default function TaskEditor() {
   const [title, setTitle] = useState(existing?.title ?? '');
   const [note, setNote] = useState(existing?.note ?? '');
   const [time, setTime] = useState(existing?.time ?? '09:00');
-  const [day, setDay] = useState<'today' | string>(existing?.day ?? 'today');
+  const [dueDate, setDueDate] = useState(existing?.dueDate ?? isoToday());
   const [priority, setPriority] = useState<Priority>(existing?.priority ?? 'medium');
   const [reminder, setReminder] = useState(existing?.reminder ?? true);
   const [titleError, setTitleError] = useState<string | undefined>();
+  const [picker, setPicker] = useState<'time' | 'date' | null>(null);
   const noteRef = useRef<TextInput>(null);
+
+  const dayChips = useMemo(() => DAY_OFFSETS.map((n) => isoToday(n)), []);
+  const timeChips = useMemo(
+    () => (TIME_SLOTS.includes(time) ? TIME_SLOTS : [...TIME_SLOTS, time].sort()),
+    [time]
+  );
+
+  const onPick = (event: DateTimePickerEvent, value?: Date) => {
+    if (Platform.OS !== 'ios') setPicker(null);
+    if (event.type !== 'set' || !value) return;
+    if (picker === 'time') {
+      setTime(`${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`);
+    } else {
+      setDueDate(toIsoDate(value));
+    }
+  };
 
   const save = () => {
     if (!title.trim()) {
       setTitleError('Give your task a name');
       return;
     }
-    const payload = { title: title.trim(), note: note.trim() || undefined, time, day, priority, reminder };
+    const payload = {
+      title: title.trim(),
+      note: note.trim() || undefined,
+      time,
+      dueDate,
+      day: dateToDayLabel(dueDate),
+      priority,
+      reminder,
+    };
     if (editing && existing) {
       updateTask(existing.id, payload);
     } else {
@@ -70,6 +93,8 @@ export default function TaskEditor() {
     if (existing) deleteTask(existing.id);
     router.back();
   };
+
+  const customDay = !dayChips.includes(dueDate);
 
   return (
     <Screen safeTop={false} keyboardAvoiding safeBottom>
@@ -114,24 +139,52 @@ export default function TaskEditor() {
           Day
         </AppText>
         <View style={styles.chipRow}>
-          {DAYS.map((d) => (
+          {dayChips.map((d, i) => (
             <Chip
               key={d}
-              label={d === 'today' ? 'Today' : d}
-              selected={day === d}
-              onPress={() => setDay(d)}
+              label={i === 0 ? 'Today' : dateToDayLabel(d)}
+              selected={dueDate === d}
+              onPress={() => setDueDate(d)}
             />
           ))}
+          <Chip
+            label={customDay ? dateToDayLabel(dueDate) : 'Pick a date…'}
+            selected={customDay}
+            onPress={() => setPicker(picker === 'date' ? null : 'date')}
+          />
         </View>
 
         <AppText variant="caption" tone="secondary" style={styles.label}>
           Time
         </AppText>
         <View style={styles.chipRow}>
-          {TIME_SLOTS.map((t) => (
+          {timeChips.map((t) => (
             <Chip key={t} label={formatTime(t)} selected={time === t} onPress={() => setTime(t)} />
           ))}
+          <Chip label="Custom…" onPress={() => setPicker(picker === 'time' ? null : 'time')} />
         </View>
+
+        {picker ? (
+          <View
+            style={[
+              styles.pickerWrap,
+              { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+            ]}
+          >
+            <DateTimePicker
+              value={picker === 'time' ? parseTime(time) : parseIso(dueDate)}
+              mode={picker}
+              minimumDate={picker === 'date' ? parseIso(isoToday()) : undefined}
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              themeVariant={theme.dark ? 'dark' : 'light'}
+              onChange={onPick}
+              minuteInterval={5}
+            />
+            {Platform.OS === 'ios' ? (
+              <Button label="Done" variant="secondary" onPress={() => setPicker(null)} />
+            ) : null}
+          </View>
+        ) : null}
 
         <AppText variant="caption" tone="secondary" style={styles.label}>
           Priority
@@ -202,6 +255,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: layout.space.sm,
     marginBottom: layout.space.lg,
+  },
+  pickerWrap: {
+    borderRadius: layout.radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: layout.space.sm,
+    marginBottom: layout.space.lg,
+    alignItems: 'stretch',
   },
   reminderRow: {
     flexDirection: 'row',

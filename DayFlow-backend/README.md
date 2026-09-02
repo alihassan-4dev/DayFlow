@@ -121,6 +121,22 @@ deliver a burst of stale reminders on recovery. Each (task, device, stage) pair
 is reserved in `notification_deliveries` before sending, which is what makes a
 retried QStash call safe.
 
+## AI voice endpoints
+
+All free-tier: Whisper runs on Groq (same `GROQ_API_KEY`), speech comes from
+Microsoft Edge neural voices through `edge-tts` (no key; needs outbound network
+from the function, which Vercel allows).
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /ai/voice` | multipart `audio` + `history`/`personality`/`voice`/`speed` → transcript, reply, task actions, base64 MP3 |
+| `POST /ai/transcribe` | multipart `audio` → text |
+| `POST /ai/speak` | `{text, voice, speed}` → `audio/mpeg`, or `204` when Edge is unreachable so the app can fall back to device speech |
+| `GET /ai/voices` | the curated voice catalogue the app shows |
+
+`POST /ai/chat` now also accepts `personality` (`friendly` / `focused` / `coach`)
+and `voice: true`, which asks for shorter, list-free replies meant to be read aloud.
+
 ## Verification
 
 ```powershell

@@ -43,4 +43,31 @@ npx expo-doctor
 npx expo export --platform android
 ```
 
-Voice controls and real password-reset email delivery are not yet implemented.
+## Voice mode
+
+The mic button (chat composer, or the floating mic on the Tasks screen) opens a
+full-screen voice conversation:
+
+1. **Listen** — `expo-audio` records mono AAC with metering on. The screen
+   watches the level and ends the turn on its own after ~1.2 s of silence.
+2. **Think** — one `POST /ai/voice` round trip: Groq Whisper transcribes the
+   clip, the assistant answers (and can change tasks), and the backend returns
+   the reply plus an MP3 spoken by a Microsoft Edge neural voice.
+3. **Speak** — the MP3 plays; tap the orb to interrupt. With **Hands-free** on
+   it goes straight back to listening.
+
+If the backend has no audio for a reply (offline, or the "Device voice"
+preference), `expo-speech` reads it with the phone's own voice. Everything said
+also lands in the text chat.
+
+Voice mode works in Expo Go. The microphone permission string lives in the
+`expo-audio` plugin entry in `app.json`.
+
+## Brand assets
+
+Icons, splash, favicon and the notification glyph are generated from one vector
+definition (`src/theme/brand.ts`); the in-app `DayFlowMark` component renders
+the same geometry with `react-native-svg`, so the animated splash matches the
+native one pixel for pixel.
+
+Real password-reset email delivery is not yet implemented.

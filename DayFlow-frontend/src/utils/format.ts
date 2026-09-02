@@ -1,4 +1,5 @@
-import { Priority } from '../data/types';
+import { isoToday } from '../api/client';
+import { Priority, Task } from '../data/types';
 import { Theme } from '../theme/themes';
 
 export function formatTime(time24: string): string {
@@ -7,6 +8,22 @@ export function formatTime(time24: string): string {
   const suffix = h >= 12 ? 'PM' : 'AM';
   const hour = h % 12 === 0 ? 12 : h % 12;
   return `${hour}:${String(m ?? 0).padStart(2, '0')} ${suffix}`;
+}
+
+/** "HH:MM" for the current local time. */
+export function nowTime(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Open task whose date has passed, or whose time today already went by. */
+export function isOverdue(task: Task, now = new Date()): boolean {
+  if (task.completed) return false;
+  const today = isoToday();
+  if (task.dueDate < today) return true;
+  if (task.dueDate > today) return false;
+  const current = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return task.time < current;
 }
 
 export function priorityMeta(priority: Priority, theme: Theme) {

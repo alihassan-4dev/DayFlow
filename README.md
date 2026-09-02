@@ -38,13 +38,19 @@ npx expo start                  # scan the QR with Expo Go
 ```
 
 Each package's README has the full details, including deploying the backend to
-FastAPI Cloud and building the mobile app with EAS.
+Vercel and building the mobile app with EAS.
 
 ## Features
 
 - Email/password auth (JWT), onboarding, task CRUD with priorities & reminders
 - AI assistant: tool-calling agent (Groq `openai/gpt-oss-120b` via LangChain)
-  that operates directly on your tasks
+  that operates directly on your tasks, with three personalities
+- Voice mode: a hands-free spoken conversation — Whisper on Groq for
+  speech-to-text, Microsoft Edge neural voices (free, via `edge-tts`) for the
+  reply, silence detection so you never press a button, and on-device speech as
+  an offline fallback
+- Chat history that survives restarts, overdue tracking, long-press task actions
+  (done / move to tomorrow / delete), free-form date & time picking
 - Long-term memory: local mem0 (Groq + local embeddings + Chroma) or hosted mem0
 - Six-theme design system (Paper default, Ink, Aurora, Ocean, Forest, Carbon/OLED)
 - Works offline in demo mode when the backend is unreachable

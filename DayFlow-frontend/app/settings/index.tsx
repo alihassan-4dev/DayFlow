@@ -1,20 +1,36 @@
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { api } from '../../src/api/client';
 import { AppText } from '../../src/components/AppText';
 import { Screen } from '../../src/components/Screen';
 import { SettingGroup, SettingRow } from '../../src/components/SettingRow';
+import { links } from '../../src/data/content';
+import { unregisterPushNotifications } from '../../src/services/notifications';
+import { useChat } from '../../src/state/ChatContext';
 import { usePreferences } from '../../src/state/PreferencesContext';
 import { useTasks } from '../../src/state/TasksContext';
-import { unregisterPushNotifications } from '../../src/services/notifications';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { cardShadow, layout } from '../../src/theme/themes';
 
+const VOICE_NAMES: Record<string, string> = {
+  ava: 'Ava',
+  andrew: 'Andrew',
+  emma: 'Emma',
+  brian: 'Brian',
+  sonia: 'Sonia',
+  ryan: 'Ryan',
+  natasha: 'Natasha',
+  neerja: 'Neerja',
+  device: 'Device',
+};
+
 export default function SettingsIndex() {
   const { theme } = useTheme();
-  const { prefs } = usePreferences();
+  const { prefs, setPref } = usePreferences();
   const { clear: clearTasks } = useTasks();
+  const { clear: clearChat } = useChat();
   const router = useRouter();
 
   const toneLabel = {
@@ -22,6 +38,31 @@ export default function SettingsIndex() {
     friendly: 'Friendly',
     minimal: 'Minimal',
   }[prefs.notificationTone];
+
+  const personalityLabel = { friendly: 'Friendly', focused: 'Focused', coach: 'Coach' }[
+    prefs.aiPersonality
+  ];
+
+  const version = Constants.expoConfig?.version ?? '1.0.0';
+
+  const open = (url: string) => Linking.openURL(url).catch(() => {});
+
+  const signOut = () =>
+    Alert.alert('Sign out?', 'Your tasks stay safe in your account.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => {
+          await unregisterPushNotifications();
+          await api.signOut();
+          clearTasks();
+          clearChat();
+          setPref('email', '');
+          router.replace('/(auth)/welcome');
+        },
+      },
+    ]);
 
   return (
     <Screen safeTop={false} padded={false}>
@@ -46,8 +87,8 @@ export default function SettingsIndex() {
           </View>
           <View style={styles.profileText}>
             <AppText variant="headline">{prefs.name}</AppText>
-            <AppText variant="caption" tone="tertiary" style={styles.email}>
-              accounts@innoxitechai.com
+            <AppText variant="caption" tone="tertiary" style={styles.email} numberOfLines={1}>
+              {prefs.email || 'Signed in'}
             </AppText>
           </View>
         </View>
@@ -68,36 +109,27 @@ export default function SettingsIndex() {
           <SettingRow
             icon="sliders"
             title="AI preferences"
+            value={personalityLabel}
             onPress={() => router.push('/settings/ai-preferences')}
           />
           <SettingRow
             icon="mic"
             title="Voice"
-            value={prefs.voiceEnabled ? 'On' : 'Off'}
+            value={prefs.voiceEnabled ? (VOICE_NAMES[prefs.voiceId] ?? 'On') : 'Off'}
             onPress={() => router.push('/settings/voice')}
             last
           />
         </SettingGroup>
 
         <SettingGroup title="About">
-          <SettingRow icon="file-text" title="Terms & privacy" onPress={() => {}} />
-          <SettingRow icon="help-circle" title="Help & feedback" onPress={() => {}} />
-          <SettingRow icon="info" title="Version" value="1.0.0" last />
+          <SettingRow icon="file-text" title="Terms & privacy" onPress={() => open(links.license)} />
+          <SettingRow icon="help-circle" title="Help & feedback" onPress={() => open(links.issues)} />
+          <SettingRow icon="github" title="Open source" onPress={() => open(links.repo)} />
+          <SettingRow icon="info" title="Version" value={version} last />
         </SettingGroup>
 
         <SettingGroup>
-          <SettingRow
-            icon="log-out"
-            title="Sign out"
-            danger
-            onPress={async () => {
-              await unregisterPushNotifications();
-              await api.signOut();
-              clearTasks();
-              router.replace('/(auth)/welcome');
-            }}
-            last
-          />
+          <SettingRow icon="log-out" title="Sign out" danger onPress={signOut} last />
         </SettingGroup>
       </ScrollView>
     </Screen>
@@ -121,6 +153,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  profileText: { marginLeft: layout.space.lg },
+  profileText: { marginLeft: layout.space.lg, flex: 1 },
   email: { marginTop: 2 },
 });

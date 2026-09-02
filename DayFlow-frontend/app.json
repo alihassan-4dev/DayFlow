@@ -2,30 +2,34 @@
   "expo": {
     "name": "DayFlow",
     "slug": "dayflow-frontend",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "scheme": "dayflow",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "backgroundColor": "#16172B",
+    "backgroundColor": "#15173A",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#16172B"
+      "backgroundColor": "#15173A"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.alihassancodes.dayflow",
-      "buildNumber": "1"
+      "buildNumber": "2",
+      "infoPlist": {
+        "UIBackgroundModes": []
+      }
     },
     "android": {
       "package": "com.alihassancodes.dayflow",
-      "versionCode": 1,
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#16172B"
+        "backgroundImage": "./assets/adaptive-icon-bg.png",
+        "backgroundColor": "#15173A"
       },
       "edgeToEdgeEnabled": true,
       "softwareKeyboardLayoutMode": "resize",
@@ -43,23 +47,31 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#53BFD3",
+          "color": "#5FB8F0",
           "defaultChannel": "task-reminders"
         }
       ],
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#16172B",
+          "backgroundColor": "#15173A",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 220,
+          "imageWidth": 200,
           "resizeMode": "contain",
           "dark": {
-            "backgroundColor": "#0D0E1C",
+            "backgroundColor": "#15173A",
             "image": "./assets/splash-icon.png"
           }
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "DayFlow uses the microphone so you can talk to your assistant."
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-asset"
     ],
     "extra": {
       "router": {},

@@ -161,7 +161,22 @@ def _task_snapshot(tasks: list[Task]) -> str:
     return "\n".join(lines)
 
 
-def _system_prompt(user: User, tasks: list[Task], memories: list[str]) -> str:
+PERSONALITIES = {
+    "friendly": "Warm and encouraging, like a helpful friend. Light, never saccharine.",
+    "focused": "Brief and to the point. No small talk, no filler, no exclamation marks.",
+    "coach": "Direct and motivating. Nudge the user to finish what matters most first.",
+}
+
+VOICE_STYLE = (
+    "This is a spoken conversation: your reply will be read aloud. Answer in natural "
+    "speech — no lists, bullets, emojis, or symbols; say times like 'nine thirty'. "
+    "Keep it under about 40 words unless the user asks for detail. If the transcript "
+    "is unclear, ask a short clarifying question."
+)
+
+
+def _system_prompt(user: User, tasks: list[Task], memories: list[str],
+                   personality: str = "friendly", voice: bool = False) -> str:
     today = date.today()
     parts = [
         "You are DayFlow, a calm and capable daily planning assistant inside a mobile app.",
@@ -169,6 +184,8 @@ def _system_prompt(user: User, tasks: list[Task], memories: list[str]) -> str:
         f"Today is {today.isoformat()} ({today.strftime('%A')}); "
         f"tomorrow is {(today + timedelta(days=1)).isoformat()}.",
         "Keep replies short, warm, and concrete — one to three sentences. No markdown.",
+        f"Personality: {PERSONALITIES.get(personality, PERSONALITIES['friendly'])}",
+        *([VOICE_STYLE] if voice else []),
         "Use the tools to create, update, complete, or delete tasks when the user asks.",
         "When scheduling, resolve relative dates yourself (e.g. 'tomorrow', 'Friday').",
         "Current tasks:",
@@ -187,7 +204,8 @@ def _to_lc_history(history: list[ChatMessage]) -> list[BaseMessage]:
 
 
 async def chat(db: AsyncSession, user: User, message: str,
-               history: list[ChatMessage]) -> ChatResponse:
+               history: list[ChatMessage], *, personality: str = "friendly",
+               voice: bool = False) -> ChatResponse:
     settings = get_settings()
 
     tasks = list(await db.scalars(
@@ -214,7 +232,7 @@ async def chat(db: AsyncSession, user: User, message: str,
 
     memories = await asyncio.to_thread(memory.recall, user.id, message)
     messages: list[BaseMessage] = [
-        SystemMessage(_system_prompt(user, tasks, memories)),
+        SystemMessage(_system_prompt(user, tasks, memories, personality, voice)),
         *_to_lc_history(history),
         HumanMessage(message),
     ]

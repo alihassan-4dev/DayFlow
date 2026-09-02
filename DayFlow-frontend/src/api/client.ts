@@ -1,6 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { NotificationTone, Priority, Task } from '../data/types';
+import { Platform } from 'react-native';
+import {
+  AIPersonality,
+  ChatMessage,
+  NotificationTone,
+  Priority,
+  Task,
+  VoiceOption,
+  VoiceSpeed,
+} from '../data/types';
 
 const TOKEN_KEY = 'dayflow.token';
 
@@ -53,13 +62,25 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  if (!API_URL) {
-    throw new ApiError(
-      0,
-      'DayFlow API is not configured. Set EXPO_PUBLIC_API_URL for this build.'
-    );
+async function throwForStatus(res: Response): Promise<never> {
+  let detail = `Request failed (${res.status})`;
+  try {
+    const body = await res.json();
+    if (typeof body.detail === 'string') detail = body.detail;
+  } catch {
+    // keep default message
   }
+  throw new ApiError(res.status, detail);
+}
+
+function assertConfigured(): void {
+  if (!API_URL) {
+    throw new ApiError(0, 'DayFlow API is not configured. Set EXPO_PUBLIC_API_URL for this build.');
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  assertConfigured();
   const token = await loadToken();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -69,18 +90,34 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...options.headers,
     },
   });
-  if (!res.ok) {
-    let detail = `Request failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (typeof body.detail === 'string') detail = body.detail;
-    } catch {
-      // keep default message
-    }
-    throw new ApiError(res.status, detail);
-  }
+  if (!res.ok) await throwForStatus(res);
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
+}
+
+/** Multipart upload — lets fetch set the boundary itself. */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  assertConfigured();
+  const token = await loadToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) await throwForStatus(res);
+  return res.json() as Promise<T>;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onloadend = () => {
+      const dataUrl = String(reader.result ?? '');
+      resolve(dataUrl.slice(dataUrl.indexOf(',') + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
 }
 
 // --- Task shape mapping ------------------------------------------------------
@@ -96,10 +133,14 @@ interface ServerTask {
   completed: boolean;
 }
 
-function isoToday(offsetDays = 0): string {
+export function toIsoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function isoToday(offsetDays = 0): string {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return toIsoDate(d);
 }
 
 export function dateToDayLabel(dueDate: string): Task['day'] {
@@ -123,7 +164,7 @@ export function dayLabelToDate(day: Task['day']): string {
   if (parsed.getTime() < Date.now() - 24 * 3600 * 1000) {
     parsed.setFullYear(parsed.getFullYear() + 1);
   }
-  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+  return toIsoDate(parsed);
 }
 
 function toClientTask(t: ServerTask): Task {
@@ -132,6 +173,7 @@ function toClientTask(t: ServerTask): Task {
     title: t.title,
     note: t.note ?? undefined,
     time: t.time,
+    dueDate: t.due_date,
     day: dateToDayLabel(t.due_date),
     priority: t.priority,
     reminder: t.reminder,
@@ -145,6 +187,28 @@ export interface AuthUser {
   id: number;
   email: string;
   name: string;
+}
+
+export interface ChatResult {
+  reply: string;
+  action: { icon: string; label: string } | null;
+  tasks_changed: boolean;
+}
+
+export interface VoiceTurnResult extends ChatResult {
+  transcript: string;
+  audio_base64: string | null;
+  audio_mime: string;
+}
+
+export interface VoiceTurnInput {
+  /** Local file URI (native) or blob URL (web) of the recording */
+  uri: string;
+  history: Pick<ChatMessage, 'role' | 'text'>[];
+  personality: AIPersonality;
+  /** Backend voice id; omit or pass "device" to skip server-side speech */
+  voice?: string;
+  speed: VoiceSpeed;
 }
 
 export const api = {
@@ -231,7 +295,7 @@ export const api = {
       body: JSON.stringify({
         title: task.title,
         note: task.note ?? null,
-        due_date: dayLabelToDate(task.day),
+        due_date: task.dueDate || dayLabelToDate(task.day),
         time: task.time,
         priority: task.priority,
         reminder: task.reminder,
@@ -244,7 +308,8 @@ export const api = {
     const body: Record<string, unknown> = {};
     if (patch.title !== undefined) body.title = patch.title;
     if (patch.note !== undefined) body.note = patch.note ?? null;
-    if (patch.day !== undefined) body.due_date = dayLabelToDate(patch.day);
+    if (patch.dueDate !== undefined) body.due_date = patch.dueDate;
+    else if (patch.day !== undefined) body.due_date = dayLabelToDate(patch.day);
     if (patch.time !== undefined) body.time = patch.time;
     if (patch.priority !== undefined) body.priority = patch.priority;
     if (patch.reminder !== undefined) body.reminder = patch.reminder;
@@ -262,15 +327,62 @@ export const api = {
 
   async chat(
     message: string,
-    history: { role: 'user' | 'ai'; text: string }[]
-  ): Promise<{
-    reply: string;
-    action: { icon: string; label: string } | null;
-    tasks_changed: boolean;
-  }> {
+    history: Pick<ChatMessage, 'role' | 'text'>[],
+    options: { personality?: AIPersonality; voice?: boolean } = {}
+  ): Promise<ChatResult> {
     return request('/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({
+        message,
+        history,
+        personality: options.personality ?? 'friendly',
+        voice: options.voice ?? false,
+      }),
     });
+  },
+
+  /** One spoken turn: upload the clip, get transcript + reply (+ MP3) back. */
+  async voiceTurn(input: VoiceTurnInput): Promise<VoiceTurnResult> {
+    const form = new FormData();
+    if (Platform.OS === 'web') {
+      const blob = await (await fetch(input.uri)).blob();
+      form.append('audio', blob, 'speech.webm');
+    } else {
+      const name = input.uri.split('/').pop() || 'speech.m4a';
+      const ext = name.split('.').pop()?.toLowerCase() ?? 'm4a';
+      form.append('audio', {
+        uri: input.uri,
+        name,
+        type: ext === '3gp' ? 'audio/3gpp' : `audio/${ext}`,
+      } as unknown as Blob);
+    }
+    form.append('history', JSON.stringify(input.history.slice(-10)));
+    form.append('personality', input.personality);
+    form.append('speed', input.speed);
+    const serverVoice = input.voice && input.voice !== 'device';
+    form.append('speak', serverVoice ? 'true' : 'false');
+    if (serverVoice) form.append('voice', input.voice as string);
+    return upload<VoiceTurnResult>('/ai/voice', form);
+  },
+
+  async voices(): Promise<VoiceOption[]> {
+    return request<VoiceOption[]>('/ai/voices');
+  },
+
+  /** Base64 MP3 for `text`, or null when the server has no voice available. */
+  async speak(text: string, voice: string, speed: VoiceSpeed): Promise<string | null> {
+    assertConfigured();
+    const token = await loadToken();
+    const res = await fetch(`${API_URL}/ai/speak`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text, voice, speed }),
+    });
+    if (!res.ok) await throwForStatus(res);
+    if (res.status === 204) return null;
+    return blobToBase64(await res.blob());
   },
 };

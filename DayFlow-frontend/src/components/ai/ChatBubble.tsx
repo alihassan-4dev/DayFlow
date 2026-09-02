@@ -31,7 +31,12 @@ export function ChatBubble({ message }: { message: ChatMessage }) {
     return (
       <Animated.View style={[styles.userRow, animStyle]}>
         <View style={[styles.userBubble, { backgroundColor: theme.colors.surfaceElevated }]}>
-          <AppText variant="body">{message.text}</AppText>
+          {message.via === 'voice' ? (
+            <Feather name="mic" size={11} color={theme.colors.textTertiary} style={styles.voiceGlyph} />
+          ) : null}
+          <AppText variant="body" style={styles.userText}>
+            {message.text}
+          </AppText>
         </View>
       </Animated.View>
     );
@@ -78,11 +83,15 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     maxWidth: '82%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     borderRadius: layout.radius.lg,
     borderBottomRightRadius: 6,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
+  voiceGlyph: { marginTop: 5, marginRight: 7 },
+  userText: { flexShrink: 1 },
   aiRow: {
     flexDirection: 'row',
     marginBottom: layout.space.xl,
